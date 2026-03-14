@@ -1,0 +1,18 @@
+[project]
+name = "deep-learning-project"
+version = "0.1.0"
+description = "Dataset preparation utilities and experiments for a WikiArt artist classification project."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "matplotlib>=3.10.8",
+    "numpy>=2.4.3",
+    "pillow>=12.1.1",
+    "tensorflow>=2.21.0",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.2.0",
+    "pykernel>=0.1.6",
+]
