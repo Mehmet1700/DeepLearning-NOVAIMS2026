@@ -1,4 +1,4 @@
-data/
+
 venv/
 *.h5
 *.keras
