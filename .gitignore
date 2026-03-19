@@ -1,4 +1,4 @@
-
+data/
 venv/
 *.h5
 *.keras
@@ -8,3 +8,4 @@ logs/
 results/
 *.zip
 *.tar.gz
+.venv/
