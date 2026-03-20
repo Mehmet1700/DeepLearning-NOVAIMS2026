@@ -2,3 +2,6 @@ pillow>=8.0.0
 matplotlib>=3.0.0
 numpy>=1.19.0
 pandas>=1.0.0
+squarify==0.4.4
+imagehash==4.3.2
+tensorflow==2.21.0
