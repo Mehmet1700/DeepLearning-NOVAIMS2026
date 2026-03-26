@@ -8,12 +8,14 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-SOURCE_DIR = Path("wikiart")
-OUTPUT_DIR = Path("data")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+RAW_DATASET_DIR_NAME = "wikiart"
+SOURCE_DIR = PROJECT_ROOT / "data" / RAW_DATASET_DIR_NAME
+OUTPUT_DIR = PROJECT_ROOT / "data"
 TRAIN_RATIO = 0.70
 VALIDATION_RATIO = 0.15
 TEST_RATIO = 0.15
-SEED = 42
+SEED = 73
 
 SPLIT_NAMES = ("train", "validation", "test")
 IMAGE_SUFFIXES = {".jpg"}
@@ -46,10 +48,7 @@ def minimum_files_for_non_empty_splits(ratios: SplitRatios) -> int:
     total_files = len(SPLIT_NAMES)
     while True:
         counts = calculate_split_counts(total_files, ratios)
-        if all(
-            getattr(counts, split_name) > 0
-            for split_name in SPLIT_NAMES
-        ):
+        if all(getattr(counts, split_name) > 0 for split_name in SPLIT_NAMES):
             return total_files
         total_files += 1
 
@@ -67,6 +66,11 @@ def resolve_ratios() -> SplitRatios:
     if any(value <= 0 for value in (ratios.train, ratios.validation, ratios.test)):
         raise ValueError("All split ratios must be greater than 0.")
     return ratios
+
+
+def is_supported_source_inside_output(source: Path, output: Path) -> bool:
+    """Return whether the paths match the supported data/wikiart layout."""
+    return source.parent == output and source.name == RAW_DATASET_DIR_NAME
 
 
 def validate_paths(source: Path, output: Path) -> None:
@@ -90,7 +94,10 @@ def validate_paths(source: Path, output: Path) -> None:
         )
     if source_resolved in output_resolved.parents:
         raise ValueError("Output directory cannot be inside the source directory.")
-    if output_resolved in source_resolved.parents:
+    if (
+        output_resolved in source_resolved.parents
+        and not is_supported_source_inside_output(source_resolved, output_resolved)
+    ):
         raise ValueError("Output directory cannot contain the source directory.")
 
 
@@ -236,9 +243,7 @@ def main() -> None:
         print(f"Error: {error}")
         raise SystemExit(1) from error
 
-    print_summary(
-        SOURCE_DIR, OUTPUT_DIR, ratios, SEED, class_summaries, total_counts
-    )
+    print_summary(SOURCE_DIR, OUTPUT_DIR, ratios, SEED, class_summaries, total_counts)
 
 
 if __name__ == "__main__":
