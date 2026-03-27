@@ -1,76 +1,76 @@
 # Deep Learning Project
 
-Dataset preparation and baseline CNN experimentation for WikiArt artist classification.
+Dataset preparation, exploratory analysis, and baseline CNN experimentation for WikiArt artist classification.
 
 ## Current Scope
 
-- `split_dataset.py` builds deterministic train, validation, and test splits from a local `wikiart/` dataset.
-- `NN.ipynb` loads the generated `data/` splits and trains a baseline TensorFlow CNN.
-- `cnn_generalization_strategy_guide.md` captures follow-up architecture and regularization improvements.
-- `main.py` is still a minimal placeholder entrypoint.
-- Python dependencies and commands are managed with `uv`.
-
-## Getting Started
-
-Install the environment:
-
-```bash
-uv sync
-```
-
-Prepare the local dataset:
-
-1. Create a `wikiart/` directory in the project root.
-2. Add one subdirectory per artist.
-3. Put `.jpg` files directly inside each artist directory.
-
-Generate the dataset split:
-
-```bash
-uv run python split_dataset.py
-```
-
-Open the notebook for training and evaluation:
-
-```bash
-uv run jupyter lab
-```
-
-`data/` and `wikiart/` are intentionally ignored by Git because they are local dataset directories and can make the repository unnecessarily large.
+- `src/split_dataset.py` builds deterministic train, validation, and test splits from the raw dataset in `data/wikiart/`.
+- `notebooks/NN.ipynb` trains and evaluates a baseline TensorFlow CNN on `data/train`, `data/validation`, and `data/test`.
+- `notebooks/explore_wikiart.ipynb`, `notebooks/EDA/EDA.ipynb`, and `notebooks/Data Understanding - Group 8.ipynb` inspect the raw WikiArt dataset.
+- `cnn_generalization_strategy_guide.md` captures follow-up ideas for improving generalization.
+- `src/main.py` is still a minimal placeholder entrypoint.
+- Python commands in this repository use `uv`.
 
 ## Repository Tree
 
 ```text
 deep_learning_project/
 ├── .gitignore
-├── .python-version
-├── cnn_generalization_strategy_guide.md
-├── Deep_Learning_Project.pdf
-├── NN.ipynb
+├── HPC_SETUP.md
 ├── README.md
-├── main.py
-├── pyproject.toml
-├── split_dataset.py
-└── uv.lock
+├── cnn_generalization_strategy_guide.md
+├── documents/
+│   └── Deep_Learning_Project.pdf
+├── data/
+│   ├── wikiart/
+│   ├── train/
+│   ├── validation/
+│   └── test/
+├── notebooks/
+│   ├── Data Understanding - Group 8.ipynb
+│   ├── NN.ipynb
+│   ├── explore_wikiart.ipynb
+│   └── EDA/
+│       ├── EDA.ipynb
+│       ├── images_per_artist.png
+│       ├── pixel_intensity_boxplot.png
+│       ├── pixel_intensity_boxplot_rgb.png
+│       ├── pixel_intensity_by_artist.png
+│       ├── pixel_intensity_rgb_by_artist.png
+│       └── shape_combinations.png
+├── requirements.txt
+├── src/
+│   ├── main.py
+│   ├── split_dataset.py
+│   └── utils.py
+└── tests/
+    └── test_split_dataset.py
 ```
 
-- `.gitignore`: excludes local datasets, caches, notebook checkpoints, and common training artifacts.
-- `.python-version`: pins the local Python interpreter version.
+- `.gitignore`: keeps `data/wikiart` tracked while ignoring generated splits and local artifacts.
+- `HPC_SETUP.md`: setup and execution notes for running the project on the Deucalion HPC cluster.
+- `README.md`: project overview, setup instructions, and the current data-tracking policy.
 - `cnn_generalization_strategy_guide.md`: notes for improving CNN validation performance and reducing overfitting.
-- `Deep_Learning_Project.pdf`: project brief and reference material.
-- `NN.ipynb`: notebook that loads `data/`, trains a baseline CNN, plots curves, and evaluates on the test split.
-- `README.md`: project overview, setup instructions, and dataset workflow notes.
-- `main.py`: placeholder CLI entrypoint.
-- `pyproject.toml`: project metadata and dependency configuration for `uv`.
-- `split_dataset.py`: deterministic dataset split utility for local image folders.
-- `uv.lock`: locked dependency versions for reproducible environments.
+- `documents/Deep_Learning_Project.pdf`: project brief and supporting reference material.
+- `data/wikiart/`: tracked raw WikiArt dataset organized by artist.
+- `data/train/`: generated training split created from `data/wikiart`; ignored by Git.
+- `data/validation/`: generated validation split created from `data/wikiart`; ignored by Git.
+- `data/test/`: generated test split created from `data/wikiart`; ignored by Git.
+- `notebooks/Data Understanding - Group 8.ipynb`: exploratory notebook for inspecting the raw dataset and image statistics.
+- `notebooks/NN.ipynb`: baseline TensorFlow training and evaluation notebook for the generated dataset splits.
+- `notebooks/explore_wikiart.ipynb`: notebook for browsing and summarizing the raw dataset under `data/wikiart`.
+- `notebooks/EDA/EDA.ipynb`: notebook that builds an image-level DataFrame for exploratory analysis.
+- `src/main.py`: minimal placeholder CLI entrypoint.
+- `src/split_dataset.py`: deterministic dataset splitter that copies images from `data/wikiart` into train, validation, and test folders.
+- `src/utils.py`: helper functions for duplicate detection and perceptual hashing in the analysis notebooks.
+- `tests/test_split_dataset.py`: regression tests for split-dataset path resolution, validation rules, and split generation.
 
-## Local Data Layout
+## Data Layout
 
-Expected raw dataset layout:
+Tracked raw dataset layout:
 
 ```text
-wikiart/
+data/wikiart/
 ├── artist_1/
 │   ├── image_001.jpg
 │   ├── image_002.jpg
@@ -83,6 +83,7 @@ Generated split layout:
 
 ```text
 data/
+├── wikiart/
 ├── train/
 │   ├── artist_1/
 │   ├── artist_2/
@@ -97,16 +98,15 @@ data/
     └── ...
 ```
 
-- `wikiart/`: local raw dataset used as input to the split script.
-- `data/`: generated split output consumed by `NN.ipynb`.
-
 ## Split Script Behavior
 
-Default configuration in [`split_dataset.py`](/Users/alexandre/Documents/deep_learning_project/split_dataset.py):
+Default configuration in `src/split_dataset.py`:
 
 ```python
-SOURCE_DIR = Path("wikiart")
-OUTPUT_DIR = Path("data")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+SOURCE_DIR = DATA_DIR / "wikiart"
+OUTPUT_DIR = DATA_DIR
 TRAIN_RATIO = 0.70
 VALIDATION_RATIO = 0.15
 TEST_RATIO = 0.15
@@ -115,9 +115,9 @@ SEED = 42
 
 The script:
 
-- reads non-hidden class directories from `wikiart/`
+- reads non-hidden class directories from `data/wikiart/`
 - copies only `.jpg` files found directly inside each class directory
-- writes a fresh split dataset under `data/`
+- writes a fresh split dataset under `data/train`, `data/validation`, and `data/test`
 - uses deterministic per-class shuffling with seed `42`
 - preserves file metadata via `shutil.copy2`
 
@@ -126,5 +126,13 @@ Validation rules:
 - The ratios must sum to `1.0`.
 - The source directory must exist and contain class subdirectories.
 - The output directory cannot already contain `train`, `validation`, or `test`.
+- The source directory may live inside the output root when it is outside the split folder names, such as `data/wikiart`.
+- The source directory cannot be one of the split directories or nested inside them.
 - Each class must have enough images to keep all three splits non-empty under the configured ratios.
-- Re-running requires removing or renaming the existing `data/` split folders first.
+- Re-running requires removing or renaming the existing split folders first.
+
+## Notebook Path Conventions
+
+- The notebooks resolve paths from the project root, so they work whether Jupyter is launched from the repository root or from `notebooks/`.
+- Raw-data notebooks read from `data/wikiart/`.
+- The training notebook reads from `data/train/`, `data/validation/`, and `data/test/`.

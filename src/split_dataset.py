@@ -8,8 +8,10 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-SOURCE_DIR = Path("wikiart")
-OUTPUT_DIR = Path("data")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+SOURCE_DIR = DATA_DIR / "wikiart"
+OUTPUT_DIR = DATA_DIR
 TRAIN_RATIO = 0.70
 VALIDATION_RATIO = 0.15
 TEST_RATIO = 0.15
@@ -69,21 +71,20 @@ def resolve_ratios() -> SplitRatios:
     return ratios
 
 
+def split_directories(output: Path) -> tuple[Path, ...]:
+    """Return the output directories used for the dataset splits."""
+    return tuple(output / split_name for split_name in SPLIT_NAMES)
+
+
 def validate_paths(source: Path, output: Path) -> None:
     """Ensure the source and output directories are valid for splitting."""
     if not source.exists() or not source.is_dir():
         raise ValueError(
             f"Source directory does not exist or is not a directory: {source}"
         )
-    if output.exists() and any(
-        (output / split_name).exists() for split_name in SPLIT_NAMES
-    ):
-        raise ValueError(
-            f"Output directory already contains split folders: {output}. Remove it or choose another output path.",
-        )
-
     source_resolved = source.resolve()
     output_resolved = output.resolve(strict=False)
+    split_dirs_resolved = split_directories(output_resolved)
     if output_resolved == source_resolved:
         raise ValueError(
             "Output directory must be different from the source directory."
@@ -91,7 +92,19 @@ def validate_paths(source: Path, output: Path) -> None:
     if source_resolved in output_resolved.parents:
         raise ValueError("Output directory cannot be inside the source directory.")
     if output_resolved in source_resolved.parents:
-        raise ValueError("Output directory cannot contain the source directory.")
+        if any(
+            split_dir == source_resolved or split_dir in source_resolved.parents
+            for split_dir in split_dirs_resolved
+        ):
+            raise ValueError(
+                "Source directory cannot be one of the split output directories or nested inside them."
+            )
+    if output.exists() and any(
+        split_dir.exists() for split_dir in split_directories(output)
+    ):
+        raise ValueError(
+            f"Output directory already contains split folders: {output}. Remove it or choose another output path.",
+        )
 
 
 def list_class_directories(source: Path) -> list[Path]:
