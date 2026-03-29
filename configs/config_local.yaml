@@ -1,0 +1,33 @@
+# ──────────────────────────────────────────────
+# Local development configuration
+# ──────────────────────────────────────────────
+
+# --- Data ---
+# Folders created by: python3 -m src.split_dataset
+train_dir: data/train
+val_dir:   data/validation
+test_dir:  data/test
+
+# --- Model ---
+#backbone:    efficientnetb3 
+num_classes: 23
+img_size:    [128, 128]
+
+# --- Training ---
+batch_size: 128
+epochs:     5
+patience:   5               # EarlyStopping patience
+
+# --- Augmentation ---
+
+
+# --- Compile ---
+optimizer:     adam
+learning_rate: 0.001
+loss:          sparse_categorical_crossentropy
+metrics:
+  - accuracy
+
+# --- Output paths ---
+checkpoint_dir: outputs/checkpoints
+log_dir:        outputs/logs

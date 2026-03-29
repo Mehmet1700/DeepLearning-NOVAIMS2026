@@ -15,3 +15,15 @@ logs/
 results/
 *.zip
 *.tar.gz
+data/wikiart/
+venv/
+*.h5
+*.keras
+__pycache__/
+*.pyc
+logs/
+results/
+*.zip
+*.tar.gz
+.venv/
+outputs/
