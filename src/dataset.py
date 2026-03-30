@@ -52,8 +52,10 @@ def load_split(split_dir, img_size, batch_size, augment=False, config=None):
     ds = ds.map(lambda x, y: (x / 255.0, y), num_parallel_calls=tf.data.AUTOTUNE)
 
     # Cache after normalization so images are only read from disk once.
-    # Placed before augmentation so augmentation remains random each epoch.
-    ds = ds.cache()
+    # Disabled for large resolutions (>300px) to avoid OOM — decoded float32
+    # tensors are ~46GB at 512x512 for the full training set.
+    if img_size[0] <= 300:
+        ds = ds.cache()
 
     # Apply augmentation on training set only
     if augment:

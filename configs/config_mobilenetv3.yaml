@@ -10,10 +10,10 @@ test_dir:  data/test
 # --- Model ---
 backbone:    mobilenetv3
 num_classes: 23
-img_size:    [224, 224]
+img_size:    [512, 512]
 
 # --- Training ---
-batch_size: 64            # MobileNet is lightweight — larger batch is fine
+batch_size: 32
 epochs:     30
 patience:   5
 
