@@ -20,17 +20,17 @@ patience:   5
 fine_tune_epochs:    10
 fine_tune_lr:        0.00001
 
-# --- Augmentation ---
-rotation_range:  0.1
-zoom_range:      0.1
-contrast_range:  0.1
+# --- Augmentation --- (disabled for baseline comparison)
+# rotation_range:  0.1
+# zoom_range:      0.1
+# contrast_range:  0.1
 
 # --- Compile ---
 optimizer:     adam
 learning_rate: 0.001
 loss:          sparse_categorical_crossentropy
 metrics:
-  - accuracy
+  - f1_score
 
 # --- Output paths ---
 checkpoint_dir: outputs/checkpoints/vgg16

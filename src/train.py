@@ -17,20 +17,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import tensorflow as tf
 
 from src.dataset import load_split
-from src.model import build_model, OPTIMIZERS
+from src.model import build_model, OPTIMIZERS, _resolve_metrics
 
 
 def make_callbacks(checkpoint_dir, log_dir, patience):
     return [
         tf.keras.callbacks.ModelCheckpoint(
             filepath=os.path.join(checkpoint_dir, "best_model.keras"),
-            monitor="val_accuracy",
+            monitor="val_f1_score",
             save_best_only=True,
+            mode="max",
             verbose=1,
         ),
         tf.keras.callbacks.TensorBoard(log_dir=log_dir),
         tf.keras.callbacks.EarlyStopping(
-            monitor="val_loss", patience=patience, restore_best_weights=True
+            monitor="val_f1_score", patience=patience, mode="max", restore_best_weights=True
         ),
         tf.keras.callbacks.ReduceLROnPlateau(
             monitor="val_loss", factor=0.5, patience=3, verbose=1
@@ -82,10 +83,10 @@ def train(config_path: str):
             layer.trainable = True
 
         # Recompile at a much lower learning rate
-        fine_tune_lr      = cfg.get("fine_tune_lr", 1e-5)
-        optimizer_cls     = OPTIMIZERS.get(cfg.get("optimizer", "adam").lower(), tf.keras.optimizers.Adam)
-        loss              = cfg.get("loss", "sparse_categorical_crossentropy")
-        metrics           = cfg.get("metrics", ["accuracy"])
+        fine_tune_lr  = cfg.get("fine_tune_lr", 1e-5)
+        optimizer_cls = OPTIMIZERS.get(cfg.get("optimizer", "adam").lower(), tf.keras.optimizers.Adam)
+        loss          = cfg.get("loss", "sparse_categorical_crossentropy")
+        metrics       = _resolve_metrics(cfg.get("metrics", ["f1_score"]), num_classes)
         model.compile(
             optimizer=optimizer_cls(learning_rate=fine_tune_lr),
             loss=loss,

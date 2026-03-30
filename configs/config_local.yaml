@@ -18,7 +18,10 @@ batch_size: 128
 epochs:     5
 patience:   5               # EarlyStopping patience
 
-# --- Augmentation ---
+# --- Augmentation --- (disabled for baseline comparison)
+# rotation_range:  0.1
+# zoom_range:      0.1
+# contrast_range:  0.1
 
 
 # --- Compile ---
@@ -26,7 +29,7 @@ optimizer:     adam
 learning_rate: 0.001
 loss:          sparse_categorical_crossentropy
 metrics:
-  - accuracy
+  - f1_score
 
 # --- Output paths ---
 checkpoint_dir: outputs/checkpoints

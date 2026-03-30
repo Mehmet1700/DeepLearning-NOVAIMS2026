@@ -47,13 +47,24 @@ BACKBONES = {
 }
 
 
-def _compile(model, config):
+def _resolve_metrics(metric_names, num_classes):
+    """Convert metric name strings to Keras metric objects where needed."""
+    resolved = []
+    for m in metric_names:
+        if m == "f1_score":
+            resolved.append(tf.keras.metrics.F1Score(average="macro", name="f1_score"))
+        else:
+            resolved.append(m)
+    return resolved
+
+
+def _compile(model, config, num_classes=None):
     """Compile model using settings from config dict."""
     cfg           = config or {}
     optimizer_cls = OPTIMIZERS.get(cfg.get("optimizer", "adam").lower(), tf.keras.optimizers.Adam)
     learning_rate = cfg.get("learning_rate", 1e-3)
     loss          = cfg.get("loss", "sparse_categorical_crossentropy")
-    metrics       = cfg.get("metrics", ["accuracy"])
+    metrics       = _resolve_metrics(cfg.get("metrics", ["f1_score"]), num_classes)
     model.compile(
         optimizer=optimizer_cls(learning_rate=learning_rate),
         loss=loss,
@@ -83,7 +94,7 @@ def build_baseline(num_classes, img_size, config):
         tf.keras.layers.Dropout(0.3),
         tf.keras.layers.Dense(num_classes, activation="softmax"),
     ])
-    _compile(model, config)
+    _compile(model, config, num_classes)
     return model
 
 
@@ -109,7 +120,7 @@ def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, conf
     outputs = tf.keras.layers.Dense(num_classes, activation="softmax")(x)
 
     model = tf.keras.Model(inputs, outputs)
-    _compile(model, config)
+    _compile(model, config, num_classes)
     return model
 
 
