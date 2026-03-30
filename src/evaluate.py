@@ -18,6 +18,7 @@ import seaborn as sns
 from sklearn.metrics import classification_report, confusion_matrix
 
 from src.dataset import load_split
+from src.model import SparseCategoricalF1Score
 
 
 def save_confusion_matrix(y_true, y_pred, class_names, output_dir):
@@ -102,7 +103,11 @@ def evaluate(config_path: str, weights_path: str):
         cfg["test_dir"], img_size, batch_size, augment=False
     )
 
-    model = tf.keras.models.load_model(weights_path, safe_mode=False)
+    model = tf.keras.models.load_model(
+        weights_path,
+        safe_mode=False,
+        custom_objects={"SparseCategoricalF1Score": SparseCategoricalF1Score},
+    )
 
     y_true, y_pred = [], []
     for images, labels in test_ds:

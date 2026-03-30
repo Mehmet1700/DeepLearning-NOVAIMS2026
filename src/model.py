@@ -58,6 +58,15 @@ class SparseCategoricalF1Score(tf.keras.metrics.F1Score):
         y_true = tf.cast(tf.one_hot(y_true, self._num_classes), self.dtype)
         return super().update_state(y_true, y_pred, sample_weight)
 
+    def get_config(self):
+        config = super().get_config()
+        config["num_classes"] = self._num_classes
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
+
 
 def _resolve_metrics(metric_names, num_classes):
     """Convert metric name strings to Keras metric objects where needed."""
@@ -88,6 +97,9 @@ def build_baseline(num_classes, img_size, config):
     """Simple 3-block CNN trained from scratch."""
     model = tf.keras.Sequential([
         tf.keras.Input(shape=(*img_size, 3)),
+
+        # Normalize [0, 255] → [0, 1]
+        tf.keras.layers.Rescaling(1.0 / 255.0),
 
         # Block 1
         tf.keras.layers.Conv2D(32, (3, 3), activation="relu", padding="same"),

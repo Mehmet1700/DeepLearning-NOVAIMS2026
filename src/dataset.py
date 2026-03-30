@@ -48,8 +48,9 @@ def load_split(split_dir, img_size, batch_size, augment=False, config=None):
 
     class_names = ds.class_names
 
-    # Normalize pixel values to [0, 1]
-    ds = ds.map(lambda x, y: (x / 255.0, y), num_parallel_calls=tf.data.AUTOTUNE)
+    # Raw pixels [0, 255] are passed through — each model handles its own
+    # normalization internally (Rescaling layer for baseline, preprocess_input
+    # Lambda for transfer learning backbones).
 
     # Cache after normalization so images are only read from disk once.
     # Disabled for large resolutions (>300px) to avoid OOM — decoded float32
