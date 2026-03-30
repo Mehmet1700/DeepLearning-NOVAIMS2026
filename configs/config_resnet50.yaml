@@ -1,0 +1,39 @@
+# ──────────────────────────────────────────────
+# ResNet50 — Transfer Learning (Tier 2)
+# ──────────────────────────────────────────────
+
+# --- Data ---
+train_dir: data/train
+val_dir:   data/validation
+test_dir:  data/test
+
+# --- Model ---
+backbone:    resnet50
+num_classes: 23
+img_size:    [224, 224]   # ResNet50 native input size
+
+# --- Training ---
+batch_size: 32
+epochs:     30
+patience:   5
+
+# Phase 1: train head only (backbone frozen)
+# Phase 2: fine-tune full network at lower lr
+fine_tune_epochs:    10      # additional epochs after unfreezing backbone
+fine_tune_lr:        0.00001 # lower lr for fine-tuning
+
+# --- Augmentation ---
+rotation_range:  0.1
+zoom_range:      0.1
+contrast_range:  0.1
+
+# --- Compile ---
+optimizer:     adam
+learning_rate: 0.001
+loss:          sparse_categorical_crossentropy
+metrics:
+  - accuracy
+
+# --- Output paths ---
+checkpoint_dir: outputs/checkpoints/resnet50
+log_dir:        outputs/logs/resnet50

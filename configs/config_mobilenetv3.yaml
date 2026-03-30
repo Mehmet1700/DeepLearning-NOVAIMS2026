@@ -1,0 +1,37 @@
+# ──────────────────────────────────────────────
+# MobileNetV3Large — Transfer Learning (Tier 3)
+# ──────────────────────────────────────────────
+
+# --- Data ---
+train_dir: data/train
+val_dir:   data/validation
+test_dir:  data/test
+
+# --- Model ---
+backbone:    mobilenetv3
+num_classes: 23
+img_size:    [224, 224]
+
+# --- Training ---
+batch_size: 64            # MobileNet is lightweight — larger batch is fine
+epochs:     30
+patience:   5
+
+fine_tune_epochs:    10
+fine_tune_lr:        0.00001
+
+# --- Augmentation ---
+rotation_range:  0.1
+zoom_range:      0.1
+contrast_range:  0.1
+
+# --- Compile ---
+optimizer:     adam
+learning_rate: 0.001
+loss:          sparse_categorical_crossentropy
+metrics:
+  - accuracy
+
+# --- Output paths ---
+checkpoint_dir: outputs/checkpoints/mobilenetv3
+log_dir:        outputs/logs/mobilenetv3

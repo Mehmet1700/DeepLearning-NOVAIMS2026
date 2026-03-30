@@ -1,0 +1,37 @@
+# ──────────────────────────────────────────────
+# VGG16 — Transfer Learning (Tier 2)
+# ──────────────────────────────────────────────
+
+# --- Data ---
+train_dir: data/train
+val_dir:   data/validation
+test_dir:  data/test
+
+# --- Model ---
+backbone:    vgg16
+num_classes: 23
+img_size:    [224, 224]   # VGG16 native input size
+
+# --- Training ---
+batch_size: 32
+epochs:     30
+patience:   5
+
+fine_tune_epochs:    10
+fine_tune_lr:        0.00001
+
+# --- Augmentation ---
+rotation_range:  0.1
+zoom_range:      0.1
+contrast_range:  0.1
+
+# --- Compile ---
+optimizer:     adam
+learning_rate: 0.001
+loss:          sparse_categorical_crossentropy
+metrics:
+  - accuracy
+
+# --- Output paths ---
+checkpoint_dir: outputs/checkpoints/vgg16
+log_dir:        outputs/logs/vgg16

@@ -113,9 +113,11 @@ def evaluate(config_path: str, weights_path: str):
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
 
-    # Create timestamped output folder
-    run_name   = datetime.now().strftime("run_%Y-%m-%d_%H-%M-%S")
-    output_dir = Path(cfg.get("checkpoint_dir", "outputs/checkpoints")).parent / run_name
+    # Create timestamped output folder, prefixed with model name if set
+    backbone   = cfg.get("backbone", "baseline")
+    timestamp  = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    run_name   = f"run_{backbone}_{timestamp}"
+    output_dir = Path(cfg.get("checkpoint_dir", "outputs/checkpoints")).parent.parent / run_name
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"\nSaving results to: {output_dir}\n")
 
