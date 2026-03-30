@@ -47,12 +47,24 @@ BACKBONES = {
 }
 
 
+class SparseCategoricalF1Score(tf.keras.metrics.F1Score):
+    """F1Score that accepts sparse integer labels instead of one-hot floats."""
+    def __init__(self, num_classes, **kwargs):
+        super().__init__(average="macro", **kwargs)
+        self._num_classes = num_classes
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        y_true = tf.cast(tf.reshape(y_true, [-1]), tf.int32)
+        y_true = tf.cast(tf.one_hot(y_true, self._num_classes), self.dtype)
+        return super().update_state(y_true, y_pred, sample_weight)
+
+
 def _resolve_metrics(metric_names, num_classes):
     """Convert metric name strings to Keras metric objects where needed."""
     resolved = []
     for m in metric_names:
         if m == "f1_score":
-            resolved.append(tf.keras.metrics.F1Score(average="macro", name="f1_score"))
+            resolved.append(SparseCategoricalF1Score(num_classes, name="f1_score"))
         else:
             resolved.append(m)
     return resolved
