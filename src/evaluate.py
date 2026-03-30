@@ -102,7 +102,7 @@ def evaluate(config_path: str, weights_path: str):
         cfg["test_dir"], img_size, batch_size, augment=False
     )
 
-    model = tf.keras.models.load_model(weights_path)
+    model = tf.keras.models.load_model(weights_path, safe_mode=False)
 
     y_true, y_pred = [], []
     for images, labels in test_ds:
