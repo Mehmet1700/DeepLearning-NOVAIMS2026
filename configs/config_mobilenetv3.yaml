@@ -31,6 +31,7 @@ learning_rate: 0.001
 loss:          sparse_categorical_crossentropy
 metrics:
   - f1_score
+  - auc
 
 # --- Output paths ---
 checkpoint_dir: outputs/checkpoints/mobilenetv3

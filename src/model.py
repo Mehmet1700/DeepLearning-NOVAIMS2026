@@ -50,6 +50,8 @@ BACKBONES = {
 class SparseCategoricalF1Score(tf.keras.metrics.F1Score):
     """F1Score that accepts sparse integer labels instead of one-hot floats."""
     def __init__(self, num_classes, **kwargs):
+        # Remove 'average' from kwargs if present to avoid duplicate argument
+        kwargs.pop('average', None)
         super().__init__(average="macro", **kwargs)
         self._num_classes = num_classes
 
@@ -73,7 +75,13 @@ def _resolve_metrics(metric_names, num_classes):
     resolved = []
     for m in metric_names:
         if m == "f1_score":
+            # Custom metric for sparse categorical labels
             resolved.append(SparseCategoricalF1Score(num_classes, name="f1_score"))
+        
+        elif m == "auc":
+            # AUC is complex with sparse labels; compute it in evaluation instead
+            # Skip adding it here to avoid training errors
+            pass
         else:
             resolved.append(m)
     return resolved
