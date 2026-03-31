@@ -128,13 +128,20 @@ def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, conf
 
     inputs = tf.keras.Input(shape=(*img_size, 3))
 
-    # Apply backbone-specific preprocessing
+    # Apply backbone-specific preprocessing.
+    # MobileNetV3 has include_preprocessing=True by default (applies preprocess_input
+    # internally), so we disable it and apply our own Lambda to stay consistent.
     x = tf.keras.layers.Lambda(preprocess_fn)(inputs)
+
+    extra_kwargs = {}
+    if backbone_name == "mobilenetv3":
+        extra_kwargs["include_preprocessing"] = False
 
     base = backbone_cls(
         include_top=False,
         weights="imagenet",
         input_tensor=x,
+        **extra_kwargs,
     )
     base.trainable = not freeze_base
 

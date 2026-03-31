@@ -13,9 +13,9 @@ num_classes: 23
 img_size:    [300, 300]   # EfficientNetB3 native input size
 
 # --- Training ---
-batch_size: 32
-epochs:     30
-patience:   5
+batch_size: 64
+patience:   10
+epochs:     50
 
 # Phase 1: train head only (backbone frozen)
 # Phase 2: fine-tune full network at lower lr

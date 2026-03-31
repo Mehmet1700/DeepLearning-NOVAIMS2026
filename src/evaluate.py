@@ -106,6 +106,7 @@ def evaluate(config_path: str, weights_path: str):
     model = tf.keras.models.load_model(
         weights_path,
         safe_mode=False,
+        compile=False,
         custom_objects={"SparseCategoricalF1Score": SparseCategoricalF1Score},
     )
 

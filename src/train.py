@@ -50,8 +50,9 @@ def train(config_path: str):
     backbone    = cfg.get("backbone", "baseline")
     patience    = cfg.get("patience", 5)
 
-    train_ds, _ = load_split(cfg["train_dir"], img_size, batch_size, augment=True,  config=cfg)
-    val_ds,   _ = load_split(cfg["val_dir"],   img_size, batch_size, augment=False, config=cfg)
+    augment     = cfg.get("augment", False)
+    train_ds, _ = load_split(cfg["train_dir"], img_size, batch_size, augment=augment, config=cfg)
+    val_ds,   _ = load_split(cfg["val_dir"],   img_size, batch_size, augment=False,   config=cfg)
 
     checkpoint_dir = cfg.get("checkpoint_dir", "outputs/checkpoints")
     log_dir        = cfg.get("log_dir", "outputs/logs")
