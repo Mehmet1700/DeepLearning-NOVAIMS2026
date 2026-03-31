@@ -9,6 +9,10 @@ import numpy as np
 import sys
 from pathlib import Path
 from datetime import datetime
+from sklearn.metrics import f1_score, roc_auc_score
+from sklearn.preprocessing import label_binarize
+import mlflow
+import mlflow.tensorflow
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -109,29 +113,54 @@ def evaluate(config_path: str, weights_path: str):
         compile=False,
         custom_objects={"SparseCategoricalF1Score": SparseCategoricalF1Score},
     )
+    
+    # Get backbone name early for MLflow run naming
+    backbone = cfg.get("backbone", "baseline")
+    
+    with mlflow.start_run(run_name=f"Eval_{backbone}", nested=True):
+        y_true, y_pred, y_pred_proba = [], [], []
+        for images, labels in test_ds:
+            preds = model.predict(images, verbose=0)
+            y_true.extend(labels.numpy())
+            y_pred.extend(np.argmax(preds, axis=1))
+            y_pred_proba.extend(preds)
 
-    y_true, y_pred = [], []
-    for images, labels in test_ds:
-        preds = model.predict(images, verbose=0)
-        y_true.extend(labels.numpy())
-        y_pred.extend(np.argmax(preds, axis=1))
+        y_true = np.array(y_true)
+        y_pred = np.array(y_pred)
+        y_pred_proba = np.array(y_pred_proba)
 
-    y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
+        # Create timestamped output folder, prefixed with model name if set
+        timestamp  = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        run_name   = f"run_{backbone}_{timestamp}"
+        output_dir = Path(cfg.get("checkpoint_dir", "outputs/checkpoints")).parent.parent / run_name
+        output_dir.mkdir(parents=True, exist_ok=True)
+        print(f"\nSaving results to: {output_dir}\n")
 
-    # Create timestamped output folder, prefixed with model name if set
-    backbone   = cfg.get("backbone", "baseline")
-    timestamp  = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    run_name   = f"run_{backbone}_{timestamp}"
-    output_dir = Path(cfg.get("checkpoint_dir", "outputs/checkpoints")).parent.parent / run_name
-    output_dir.mkdir(parents=True, exist_ok=True)
-    print(f"\nSaving results to: {output_dir}\n")
+        accuracy = save_summary(y_true, y_pred, class_names, output_dir)
+        save_confusion_matrix(y_true, y_pred, class_names, output_dir)
+        mlflow.log_artifact(str(output_dir / "confusion_matrix.png"))
+        save_classification_report_chart(y_true, y_pred, class_names, output_dir)
+        mlflow.log_artifact(str(output_dir / "classification_report.png"))
+        
+        f1_weighted = f1_score(y_true, y_pred, average='weighted')
+        f1_macro = f1_score(y_true, y_pred, average='macro')
+        
+        # Compute AUC using one-vs-rest strategy
+        y_true_binarized = label_binarize(y_true, classes=range(len(class_names)))
+        auc_ovr = roc_auc_score(y_true_binarized, y_pred_proba, multi_class='ovr', average='weighted')
+        auc_ovo = roc_auc_score(y_true_binarized, y_pred_proba, multi_class='ovo', average='weighted')
+        
+        mlflow.log_metric("test_f1_weighted", f1_weighted)
+        mlflow.log_metric("test_f1_macro", f1_macro)
+        mlflow.log_metric("test_auc_ovr", auc_ovr)
+        mlflow.log_metric("test_auc_ovo", auc_ovo)
+        mlflow.log_metric("test_accuracy", accuracy)
 
-    accuracy = save_summary(y_true, y_pred, class_names, output_dir)
-    save_confusion_matrix(y_true, y_pred, class_names, output_dir)
-    save_classification_report_chart(y_true, y_pred, class_names, output_dir)
-
-    print(f"\nTop-1 Accuracy: {accuracy:.4f}")
+        print(f"\nTop-1 Accuracy: {accuracy:.4f}")
+        print(f"F1 Score (weighted): {f1_weighted:.4f}")
+        print(f"F1 Score (macro): {f1_macro:.4f}")
+        print(f"AUC (OvR): {auc_ovr:.4f}")
+        print(f"AUC (OvO): {auc_ovo:.4f}")
 
 
 if __name__ == "__main__":
