@@ -16,6 +16,7 @@ import mlflow.tensorflow
 import numpy as np
 from sklearn.metrics import roc_auc_score
 from sklearn.preprocessing import label_binarize
+from sklearn.utils.class_weight import compute_class_weight
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -42,6 +43,33 @@ def make_callbacks(checkpoint_dir, log_dir, patience):
             monitor="val_loss", factor=0.5, patience=3, verbose=1
         ),
     ]
+
+
+def compute_class_weights(train_ds, num_classes):
+    """Compute class weights from training dataset to balance imbalanced classes.
+    
+    Args:
+        train_ds: Training dataset (tf.data.Dataset).
+        num_classes: Number of classes.
+    
+    Returns:
+        dict: Dictionary mapping class indices to weights.
+    """
+    y_true = []
+    for _, labels in train_ds:
+        y_true.extend(labels.numpy())
+    
+    y_true = np.array(y_true)
+    
+    # Compute weights using sklearn's utility
+    class_weights = compute_class_weight(
+        'balanced',
+        classes=np.arange(num_classes),
+        y=y_true
+    )
+    
+    # Convert to dictionary format
+    return {i: float(w) for i, w in enumerate(class_weights)}
 
 
 def compute_and_log_auc(model, dataset, num_classes, phase_name, mlflow_step):
@@ -77,10 +105,17 @@ def train(config_path: str):
     num_classes = cfg["num_classes"]
     backbone    = cfg.get("backbone", "baseline")
     patience    = cfg.get("patience", 5)
+    class_weight = cfg.get("class_weight", None)
 
     augment     = cfg.get("augment", False)
     train_ds, _ = load_split(cfg["train_dir"], img_size, batch_size, augment=augment, config=cfg)
     val_ds,   _ = load_split(cfg["val_dir"],   img_size, batch_size, augment=False,   config=cfg)
+
+    # Compute class weights if not provided in config
+    if class_weight is None and cfg.get("compute_class_weight", False):
+        print("\nComputing class weights from training data...")
+        class_weight = compute_class_weights(train_ds, num_classes)
+        print(f"Computed class weights: {class_weight}\n")
 
     checkpoint_dir = cfg.get("checkpoint_dir", "outputs/checkpoints")
     log_dir        = cfg.get("log_dir", "outputs/logs")
@@ -97,6 +132,16 @@ def train(config_path: str):
         # Log your YAML config parameters
         mlflow.log_params(cfg)
         
+        # Log class weights if provided or computed
+        if class_weight:
+            mlflow.log_dict({"class_weight": class_weight}, "class_weights.json")
+            
+            # Also save to checkpoint directory for reference
+            class_weights_path = os.path.join(checkpoint_dir, "class_weights.yaml")
+            with open(class_weights_path, 'w') as f:
+                yaml.dump({"class_weight": class_weight}, f)
+            print(f"Class weights saved to: {class_weights_path}\n")
+        
 
         # ── Phase 1: train with backbone frozen ──────────────────────────────────
         print(f"\n{'='*60}")
@@ -108,6 +153,7 @@ def train(config_path: str):
             train_ds,
             validation_data=val_ds,
             epochs=epochs,
+            class_weight=class_weight,
             callbacks=make_callbacks(checkpoint_dir, log_dir, patience),
         )
         
@@ -133,7 +179,7 @@ def train(config_path: str):
                 layer.trainable = True
 
             history_phase2a = model.fit(train_ds, validation_data=val_ds, epochs=fine_tune_epochs,
-                      callbacks=make_callbacks(checkpoint_dir, log_dir, patience))
+                      class_weight=class_weight, callbacks=make_callbacks(checkpoint_dir, log_dir, patience))
             
             # Log best epoch metrics for Phase 2a
             best_epoch_idx_2a = np.argmax(history_phase2a.history['val_f1_score'])
@@ -159,6 +205,7 @@ def train(config_path: str):
                 train_ds,
                 validation_data=val_ds,
                 epochs=fine_tune_epochs,
+                class_weight=class_weight,
                 callbacks=make_callbacks(checkpoint_dir, log_dir, patience),
             )
             
