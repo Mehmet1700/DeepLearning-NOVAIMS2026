@@ -35,7 +35,6 @@ def make_callbacks(checkpoint_dir, log_dir, patience):
             mode="max",
             verbose=1,
         ),
-        tf.keras.callbacks.TensorBoard(log_dir=log_dir),
         tf.keras.callbacks.EarlyStopping(
             monitor="val_loss", patience=patience, mode="max", restore_best_weights=True
         ),
