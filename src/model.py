@@ -3,6 +3,7 @@ Model definitions for artist classification.
 
 Supported backbones:
   - baseline      : simple 3-block CNN trained from scratch (fast, no pretrained weights)
+  - perceptron    : simple multi-layer perceptron baseline (minimal, no convolutions)
   - resnet50      : ResNet50 pretrained on ImageNet
   - efficientnetb3: EfficientNetB3 pretrained on ImageNet
   - vgg16         : VGG16 pretrained on ImageNet
@@ -29,39 +30,8 @@ POOLING_TYPES = {
 }
 
 
-class FocalSparseCategoricalCrossentropy(tf.keras.losses.Loss):
-    """Focal loss for sparse categorical classification.
-    
-    Addresses class imbalance by downweighting easy examples and focusing on hard ones.
-    Args:
-        alpha (float): Weighting factor [0, 1] for class imbalance. Default: 0.25
-        gamma (float): Focusing parameter >= 0. Higher values focus more on hard examples. Default: 2.0
-    """
-    def __init__(self, alpha=0.25, gamma=2.0, **kwargs):
-        super().__init__(**kwargs)
-        self.alpha = alpha
-        self.gamma = gamma
-
-    def call(self, y_true, y_pred):
-        y_true = tf.cast(y_true, tf.int32)
-        ce_loss = tf.keras.losses.sparse_categorical_crossentropy(
-            y_true, y_pred, from_logits=False
-        )
-        # Get the probability of the true class
-        y_pred = tf.nn.softmax(y_pred) if not tf.reduce_max(y_pred) <= 1.0 else y_pred
-        y_pred = tf.reduce_max(y_pred, axis=-1)
-        modulating_factor = (1.0 - y_pred) ** self.gamma
-        return self.alpha * modulating_factor * ce_loss
-
-    def get_config(self):
-        config = super().get_config()
-        config.update({"alpha": self.alpha, "gamma": self.gamma})
-        return config
-
-
 LOSS_FUNCTIONS = {
     "sparse_categorical_crossentropy": "sparse_categorical_crossentropy",
-    "focal_sparse_categorical_crossentropy": FocalSparseCategoricalCrossentropy,
 }
 
 BACKBONES = {
@@ -119,10 +89,6 @@ def _resolve_metrics(metric_names, num_classes):
             # Custom metric for sparse categorical labels
             resolved.append(SparseCategoricalF1Score(num_classes, name="f1_score"))
         
-        elif m == "auc":
-            # AUC is complex with sparse labels; compute it in evaluation instead
-            # Skip adding it here to avoid training errors
-            pass
         else:
             resolved.append(m)
     return resolved
@@ -195,6 +161,21 @@ def build_baseline(num_classes, img_size, config):
     return model
 
 
+def build_perceptron(num_classes, img_size, config):
+    """Simple multi-layer perceptron (no convolutions) baseline.
+    
+    Flattens the image and passes through a single dense layer.
+    Useful as a sanity check for the dataset.
+    """
+    model = tf.keras.Sequential([
+        tf.keras.Input(shape=(*img_size, 3)),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(num_classes, activation="softmax"),
+    ])
+    _compile(model, config, num_classes)
+    return model
+
+
 def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, config):
     """Transfer learning model with pretrained backbone + custom head.
     
@@ -255,8 +236,11 @@ def build_model(backbone: str, num_classes: int, img_size=(224, 224), freeze_bas
     Build and compile a model for artist classification.
 
     Args:
-        backbone:     "baseline", "resnet50", "efficientnetb3", "vgg16",
+        backbone:     "baseline", "perceptron", "resnet50", "efficientnetb3", "vgg16",
                       "mobilenetv3", or "densenet121".
+                      - baseline: Simple 3-block CNN (fast, trained from scratch)
+                      - perceptron: Simple MLP (minimal baseline for sanity check)
+                      - Others: Pretrained transfer learning models
         num_classes:  Number of output classes.
         img_size:     Spatial dimensions (height, width).
         freeze_base:  For transfer learning — freeze backbone weights in Phase 1.
@@ -269,8 +253,11 @@ def build_model(backbone: str, num_classes: int, img_size=(224, 224), freeze_bas
 
     if backbone == "baseline":
         return build_baseline(num_classes, img_size, config)
+    
+    if backbone == "perceptron":
+        return build_perceptron(num_classes, img_size, config)
 
     if backbone not in BACKBONES:
-        raise ValueError(f"Unsupported backbone: '{backbone}'. Choose from: baseline, {', '.join(BACKBONES)}")
+        raise ValueError(f"Unsupported backbone: '{backbone}'. Choose from: baseline, perceptron, {', '.join(BACKBONES)}")
 
     return build_transfer_model(backbone, num_classes, img_size, freeze_base, config)
