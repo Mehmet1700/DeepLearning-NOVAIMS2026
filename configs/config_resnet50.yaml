@@ -3,19 +3,19 @@
 # ──────────────────────────────────────────────
 
 # --- Data ---
-train_dir: data/train
-val_dir:   data/validation
-test_dir:  data/test
+train_dir: data/train       # training split folder
+val_dir:   data/validation  # validation split folder
+test_dir:  data/test        # evaluation split folder
 
 # --- Model ---
-backbone:    resnet50
+backbone:    resnet50       # supported: baseline, resnet50, efficientnetb3, vgg16, mobilenetv3, densenet121
 num_classes: 23
-img_size:    [224, 224]   # ResNet50 native input size
+img_size:    [224, 224]     # ResNet50 native input size: [height, width]
 
 # --- Training ---
 batch_size: 32
 epochs:     30
-patience:   5
+patience:   5               # EarlyStopping patience on val_loss
 
 # Phase 1: train head only (backbone frozen)
 # Phase 2: fine-tune full network at lower lr
@@ -23,18 +23,20 @@ fine_tune_epochs:    10      # additional epochs after unfreezing backbone
 fine_tune_lr:        0.00001 # lower lr for fine-tuning
 
 # --- Augmentation --- (disabled for baseline comparison)
-# rotation_range:  0.1
-# zoom_range:      0.1
-# contrast_range:  0.1
+# augment:         true      # enables training-time horizontal flip + the ranges below
+# rotation_range:  0.1       # RandomRotation factor
+# zoom_range:      0.1       # RandomZoom factor
+# contrast_range:  0.1       # RandomContrast factor
 
 # --- Compile ---
-optimizer:     adam
-learning_rate: 0.001
+optimizer:     adam         # supported: adam, sgd, rmsprop
+learning_rate: 0.001        # initial learning rate for Phase 1 / initial compile
 loss:          sparse_categorical_crossentropy
+# f1_score is used during training; auc is skipped in model.compile and logged separately.
 metrics:
   - f1_score
   - auc
 
 # --- Output paths ---
-checkpoint_dir: outputs/checkpoints/resnet50
-log_dir:        outputs/logs/resnet50
+checkpoint_dir: outputs/checkpoints/resnet50  # saved best/final model directory
+log_dir:        outputs/logs/resnet50         # TensorBoard log directory
