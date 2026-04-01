@@ -4,11 +4,11 @@ Dataset preparation, exploration, and baseline CNN experimentation for WikiArt a
 
 ## Current Status
 
-- `src/split_dataset.py` builds deterministic train, validation, and test splits from `data/wikiart/`.
+- `src/preprocessing/split_dataset.py` builds deterministic train, validation, and test splits from `data/wikiart/`.
 - `notebooks/NN.ipynb` loads `data/train`, `data/validation`, and `data/test` for baseline TensorFlow training.
 - `notebooks/EDA/EDA.ipynb` and `notebooks/explore_wikiart.ipynb` inspect the raw dataset under `data/wikiart/`.
 - `cnn_generalization_strategy_guide.md` captures follow-up regularization and architecture ideas.
-- `src/main.py` remains a minimal placeholder entrypoint.
+- `main.py` runs duplicate cleanup and dataset splitting in sequence.
 - `data/` is local-only and ignored by Git, so raw images and generated splits stay out of version control.
 
 ## Getting Started
@@ -30,7 +30,7 @@ Prepare the local raw dataset:
 Generate the split dataset:
 
 ```bash
-uv run python src/split_dataset.py
+uv run python -m src.preprocessing.split_dataset
 ```
 
 Open the notebooks in your preferred Jupyter environment after installing Jupyter in that environment.
@@ -40,51 +40,76 @@ Open the notebooks in your preferred Jupyter environment after installing Jupyte
 Tracked repository files:
 
 ```text
-deep_learning_project/
+DeepLearning-NOVAIMS2026/
 ├── .gitignore
 ├── HPC_SETUP.md
+├── INSTRUCTIONS.md
 ├── README.md
 ├── cnn_generalization_strategy_guide.md
+├── configs/
+│   ├── config_local.yaml
+│   └── ...
 ├── documents/
 │   └── Deep_Learning_Project.pdf
+├── jobs/
+│   └── train_hpc.slurm
+├── main.py
 ├── notebooks/
+│   ├── Benchmarking.ipynb
 │   ├── Data Understanding - Group 8.ipynb
 │   ├── EDA/
 │   │   ├── EDA.ipynb
-│   │   ├── images_per_artist.png
-│   │   ├── pixel_intensity_boxplot.png
-│   │   ├── pixel_intensity_boxplot_rgb.png
-│   │   ├── pixel_intensity_by_artist.png
-│   │   ├── pixel_intensity_rgb_by_artist.png
-│   │   └── shape_combinations.png
+│   │   └── ...
 │   ├── NN.ipynb
+│   ├── Visual Transformer.ipynb
+│   ├── exploration.ipynb
 │   └── explore_wikiart.ipynb
+├── pyproject.toml
 ├── requirements.txt
-└── src/
-    ├── main.py
-    ├── split_dataset.py
-    └── utils.py
+├── src/
+│   ├── compare_runs.py
+│   ├── dataset.py
+│   ├── evaluate.py
+│   ├── model.py
+│   ├── preprocess.py
+│   ├── preprocessing/
+│   │   ├── images_to_remove.json
+│   │   ├── remove_duplicates.py
+│   │   └── split_dataset.py
+│   ├── train.py
+│   └── utils.py
+└── uv.lock
 ```
 
 - `.gitignore`: ignores local datasets, virtual environments, caches, and training artifacts.
 - `HPC_SETUP.md`: notes for running the project on the target HPC environment.
+- `INSTRUCTIONS.md`: project workflow notes and runbook-style guidance for the dataset and training pipeline.
 - `README.md`: project overview, setup steps, data layout, and workflow notes.
 - `cnn_generalization_strategy_guide.md`: recommendations for improving CNN generalization and reducing overfitting.
+- `configs/config_local.yaml`: local training configuration template; sibling config files cover model-specific runs.
 - `documents/Deep_Learning_Project.pdf`: project brief and reference material.
+- `jobs/train_hpc.slurm`: SLURM job definition for HPC training runs.
+- `main.py`: root entrypoint that removes duplicates and then generates the train, validation, and test split folders.
+- `notebooks/Benchmarking.ipynb`: notebook for comparing model runs and inspecting benchmark results.
 - `notebooks/Data Understanding - Group 8.ipynb`: exploratory notebook covering early dataset understanding work.
 - `notebooks/EDA/EDA.ipynb`: exploratory data analysis notebook for raw WikiArt images.
-- `notebooks/EDA/images_per_artist.png`: saved chart of image counts by artist.
-- `notebooks/EDA/pixel_intensity_boxplot.png`: saved grayscale intensity distribution chart.
-- `notebooks/EDA/pixel_intensity_boxplot_rgb.png`: saved RGB intensity boxplot chart.
-- `notebooks/EDA/pixel_intensity_by_artist.png`: saved grayscale intensity chart split by artist.
-- `notebooks/EDA/pixel_intensity_rgb_by_artist.png`: saved RGB intensity chart split by artist.
-- `notebooks/EDA/shape_combinations.png`: saved chart of image shape combinations.
 - `notebooks/NN.ipynb`: baseline training and evaluation notebook that consumes the generated split dataset.
+- `notebooks/Visual Transformer.ipynb`: notebook for Vision Transformer experiments on the generated splits.
+- `notebooks/exploration.ipynb`: notebook for general raw-data and class exploration.
 - `notebooks/explore_wikiart.ipynb`: notebook for inspecting dataset availability and raw image coverage.
+- `pyproject.toml`: project metadata and Python packaging configuration for the `uv` workflow.
 - `requirements.txt`: Python dependency list for the local environment.
-- `src/main.py`: placeholder CLI entrypoint.
-- `src/split_dataset.py`: dataset splitter rooted at `data/wikiart` and writing splits under `data/`.
+- `src/compare_runs.py`: utilities for comparing saved experiment outputs.
+- `src/dataset.py`: dataset-loading helpers shared by the training and evaluation code.
+- `src/evaluate.py`: evaluation entrypoint for trained models and saved checkpoints.
+- `src/model.py`: model construction utilities for the classification pipeline.
+- `src/preprocess.py`: preprocessing helpers used before training and evaluation.
+- `src/preprocessing/images_to_remove.json`: curated list of duplicate or invalid WikiArt files to delete from the raw dataset.
+- `src/preprocessing/remove_duplicates.py`: cleanup script that removes known duplicate raw WikiArt images.
+- `src/preprocessing/split_dataset.py`: dataset splitter rooted at `data/wikiart` and writing splits under `data/`.
+- `src/train.py`: training entrypoint for the image classification models.
 - `src/utils.py`: image hashing helpers used for duplicate-image analysis workflows.
+- `uv.lock`: locked dependency set for reproducible `uv` environments.
 
 ## Local Data Layout
 
@@ -128,26 +153,27 @@ data/
 
 ## Split Script Behavior
 
-Default configuration in [`src/split_dataset.py`](/Users/alexandre/Documents/deep_learning_project/src/split_dataset.py):
+Default configuration in [`src/preprocessing/split_dataset.py`](src/preprocessing/split_dataset.py):
 
 ```python
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parents[1]
 RAW_DATASET_DIR_NAME = "wikiart"
 SOURCE_DIR = PROJECT_ROOT / "data" / RAW_DATASET_DIR_NAME
 OUTPUT_DIR = PROJECT_ROOT / "data"
 TRAIN_RATIO = 0.70
 VALIDATION_RATIO = 0.15
 TEST_RATIO = 0.15
-SEED = 42
+SEED = 73
 ```
 
 The script:
 
-- resolves paths from the file location, so it works when launched from the repository root or from `src/`
+- resolves paths from the file location, so it targets the repository root even though the script lives under `src/preprocessing/`
 - reads non-hidden class directories from `data/wikiart/`
 - copies only `.jpg` files found directly inside each class directory
 - writes a fresh split dataset under `data/train`, `data/validation`, and `data/test`
-- uses deterministic per-class shuffling with seed `42`
+- uses deterministic per-class shuffling with seed `73`
 - preserves file metadata via `shutil.copy2`
 
 Validation rules:
