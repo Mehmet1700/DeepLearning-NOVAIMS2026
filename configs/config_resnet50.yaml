@@ -14,12 +14,13 @@ img_size:    [224, 224]     # ResNet50 native input size: [height, width]
 
 # --- Training ---
 batch_size: 32
-epochs:     30
+epochs:     10
 patience:   5               # EarlyStopping patience on val_loss
 
 # Phase 1: train head only (backbone frozen)
+learning_rate: 0.001        # initial learning rate for Phase 1 / initial compile
 # Phase 2: fine-tune full network at lower lr
-fine_tune_epochs:    10      # additional epochs after unfreezing backbone
+fine_tune_epochs:    25      # additional epochs after unfreezing backbone
 fine_tune_lr:        0.00001 # lower lr for fine-tuning
 
 # --- Augmentation --- (disabled for baseline comparison)
@@ -30,7 +31,6 @@ fine_tune_lr:        0.00001 # lower lr for fine-tuning
 
 # --- Compile ---
 optimizer:     adam         # supported: adam, sgd, rmsprop
-learning_rate: 0.001        # initial learning rate for Phase 1 / initial compile
 loss:          sparse_categorical_crossentropy
 # f1_score is used during training; auc is skipped in model.compile and logged separately.
 metrics:
@@ -39,4 +39,4 @@ metrics:
 
 # --- Output paths ---
 checkpoint_dir: outputs/checkpoints/resnet50  # saved best/final model directory
-log_dir:        outputs/logs/resnet50         # TensorBoard log directory
+# log_dir:        outputs/logs/resnet50         # TensorBoard log directory
