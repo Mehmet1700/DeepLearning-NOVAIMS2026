@@ -10,6 +10,7 @@ def main() -> None:
     print("=" * 100)
     print("Step 2/2: Generating train/validation/test splits...")
     split_dataset.main()
+    print("Done!")
 
 
 if __name__ == "__main__":
