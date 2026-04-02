@@ -4,22 +4,45 @@ Dataset preparation, exploration, and baseline CNN experimentation for WikiArt a
 
 ## Current Status
 
+- `src/train.py` is the main ML entrypoint; its direct runtime dependencies now live in the `ml` dependency group.
+- `src/evaluate.py` and `src/compare_runs.py` build on the training stack and additionally need plotting dependencies from the `dev` group.
 - `src/preprocessing/split_dataset.py` builds deterministic train, validation, and test splits from `data/wikiart/`.
-- `notebooks/NN.ipynb` loads `data/train`, `data/validation`, and `data/test` for baseline TensorFlow training.
-- `notebooks/EDA/EDA.ipynb` and `notebooks/explore_wikiart.ipynb` inspect the raw dataset under `data/wikiart/`.
-- `cnn_generalization_strategy_guide.md` captures follow-up regularization and architecture ideas.
-- `main.py` runs duplicate cleanup and dataset splitting in sequence.
+- `src/utils.py` contains image-hashing helpers used in duplicate-analysis and EDA workflows; those dependencies live in the `preprocessing` group.
+- Notebooks and exploratory analysis live behind the `dev` group instead of the core runtime path.
 - `data/` is local-only and ignored by Git, so raw images and generated splits stay out of version control.
 
 ## Getting Started
 
-Install the environment with `uv`:
+Create and activate the virtual environment:
 
 ```bash
 uv venv
 source .venv/bin/activate
-uv pip install -r requirements.txt
 ```
+
+Sync only the dependency groups you need:
+
+```bash
+# Only the src/train.py runtime
+uv sync --only-group ml
+
+# Train, evaluate, compare runs, and open notebooks
+uv sync --group ml
+
+# Duplicate-analysis / hashing helpers plus notebooks
+uv sync --group preprocessing
+
+# Everything
+uv sync --all-groups
+```
+
+Dependency-group overview:
+
+- `preprocessing`: image hashing and PIL-based helpers used by `src/utils.py` and duplicate-analysis notebooks.
+- `ml`: libraries required to run `src/train.py`.
+- `dev`: notebooks, plotting, benchmarking, and optional Vision Transformer notebook dependencies. This is `uv`'s default dependency group.
+
+`requirements.txt` is kept as a legacy snapshot, but the primary workflow is now driven by `pyproject.toml` and `uv` groups.
 
 Prepare the local raw dataset:
 
@@ -30,30 +53,49 @@ Prepare the local raw dataset:
 Generate the split dataset:
 
 ```bash
-uv run python -m src.preprocessing.split_dataset
+uv run python main.py
 ```
 
-Open the notebooks in your preferred Jupyter environment after installing Jupyter in that environment.
+Open notebooks after syncing the default `dev` group. The duplicate-analysis notebooks also need the `preprocessing` group.
 
-## Repository Tree
+## Training Configuration
 
-Tracked repository files:
+Transfer-learning runs use `src/train.py` with a YAML config file:
+
+```bash
+uv run --only-group ml python src/train.py --config configs/config_resnet50.yaml
+```
+
+Evaluation and run-comparison commands need both `ml` and `dev`:
+
+```bash
+uv run --group ml python src/evaluate.py --config configs/config_local.yaml --weights outputs/checkpoints/best_model.keras
+uv run --group ml python src/compare_runs.py --outputs_dir outputs
+```
+
+For ResNet50 fine-tuning, `configs/config_resnet50.yaml` now supports:
+
+- `fine_tune_epochs`: number of Phase 2 epochs.
+- `fine_tune_lr`: learning rate used for the lower-LR Phase 2 pass.
+- `fine_tune_frozen_layers`: number of backbone layers to keep frozen in Phase 2. Use `0` for a fully unfrozen model.
+
+## Project Tree
+
+Core project files:
 
 ```text
 DeepLearning-NOVAIMS2026/
-├── .gitignore
-├── HPC_SETUP.md
-├── INSTRUCTIONS.md
-├── README.md
-├── cnn_generalization_strategy_guide.md
 ├── configs/
+│   ├── config_densenet121.yaml
+│   ├── config_efficientnetb3.yaml
 │   ├── config_local.yaml
-│   └── ...
+│   ├── config_mobilenetv3.yaml
+│   ├── config_resnet50.yaml
+│   └── config_vgg16.yaml
 ├── documents/
 │   └── Deep_Learning_Project.pdf
 ├── jobs/
 │   └── train_hpc.slurm
-├── main.py
 ├── notebooks/
 │   ├── Benchmarking.ipynb
 │   ├── Data Understanding - Group 8.ipynb
@@ -64,51 +106,47 @@ DeepLearning-NOVAIMS2026/
 │   ├── Visual Transformer.ipynb
 │   ├── exploration.ipynb
 │   └── explore_wikiart.ipynb
-├── pyproject.toml
-├── requirements.txt
 ├── src/
+│   ├── __init__.py
 │   ├── compare_runs.py
 │   ├── dataset.py
 │   ├── evaluate.py
 │   ├── model.py
-│   ├── preprocess.py
 │   ├── preprocessing/
 │   │   ├── images_to_remove.json
 │   │   ├── remove_duplicates.py
 │   │   └── split_dataset.py
 │   ├── train.py
 │   └── utils.py
+├── HPC_SETUP.md
+├── INSTRUCTIONS.md
+├── README.md
+├── main.py
+├── pyproject.toml
+├── requirements.txt
 └── uv.lock
 ```
 
-- `.gitignore`: ignores local datasets, virtual environments, caches, and training artifacts.
-- `HPC_SETUP.md`: notes for running the project on the target HPC environment.
-- `INSTRUCTIONS.md`: project workflow notes and runbook-style guidance for the dataset and training pipeline.
-- `README.md`: project overview, setup steps, data layout, and workflow notes.
-- `cnn_generalization_strategy_guide.md`: recommendations for improving CNN generalization and reducing overfitting.
-- `configs/config_local.yaml`: local training configuration template; sibling config files cover model-specific runs.
+- `configs/`: YAML configuration files for local runs and backbone-specific training jobs.
 - `documents/Deep_Learning_Project.pdf`: project brief and reference material.
 - `jobs/train_hpc.slurm`: SLURM job definition for HPC training runs.
-- `main.py`: root entrypoint that removes duplicates and then generates the train, validation, and test split folders.
-- `notebooks/Benchmarking.ipynb`: notebook for comparing model runs and inspecting benchmark results.
-- `notebooks/Data Understanding - Group 8.ipynb`: exploratory notebook covering early dataset understanding work.
-- `notebooks/EDA/EDA.ipynb`: exploratory data analysis notebook for raw WikiArt images.
-- `notebooks/NN.ipynb`: baseline training and evaluation notebook that consumes the generated split dataset.
-- `notebooks/Visual Transformer.ipynb`: notebook for Vision Transformer experiments on the generated splits.
-- `notebooks/exploration.ipynb`: notebook for general raw-data and class exploration.
-- `notebooks/explore_wikiart.ipynb`: notebook for inspecting dataset availability and raw image coverage.
-- `pyproject.toml`: project metadata and Python packaging configuration for the `uv` workflow.
-- `requirements.txt`: Python dependency list for the local environment.
-- `src/compare_runs.py`: utilities for comparing saved experiment outputs.
+- `notebooks/`: exploratory analysis, benchmarking, baseline CNN work, and Vision Transformer experiments.
+- `src/__init__.py`: package marker for the shared training and preprocessing modules.
+- `src/compare_runs.py`: aggregates saved evaluation summaries into comparison plots and tables.
 - `src/dataset.py`: dataset-loading helpers shared by the training and evaluation code.
 - `src/evaluate.py`: evaluation entrypoint for trained models and saved checkpoints.
-- `src/model.py`: model construction utilities for the classification pipeline.
-- `src/preprocess.py`: preprocessing helpers used before training and evaluation.
+- `src/model.py`: model construction and fine-tuning utilities for the classification pipeline.
 - `src/preprocessing/images_to_remove.json`: curated list of duplicate or invalid WikiArt files to delete from the raw dataset.
 - `src/preprocessing/remove_duplicates.py`: cleanup script that removes known duplicate raw WikiArt images.
 - `src/preprocessing/split_dataset.py`: dataset splitter rooted at `data/wikiart` and writing splits under `data/`.
 - `src/train.py`: training entrypoint for the image classification models.
 - `src/utils.py`: image hashing helpers used for duplicate-image analysis workflows.
+- `HPC_SETUP.md`: notes for running the project on the target HPC environment.
+- `INSTRUCTIONS.md`: project workflow notes and runbook-style guidance for the dataset and training pipeline.
+- `README.md`: project overview, setup steps, data layout, and workflow notes.
+- `main.py`: root entrypoint that removes duplicates and then generates the train, validation, and test split folders.
+- `pyproject.toml`: project metadata and grouped dependency configuration for the `uv` workflow.
+- `requirements.txt`: legacy dependency snapshot retained for compatibility with older workflows.
 - `uv.lock`: locked dependency set for reproducible `uv` environments.
 
 ## Local Data Layout

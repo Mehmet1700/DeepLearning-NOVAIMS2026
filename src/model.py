@@ -3,7 +3,6 @@ Model definitions for artist classification.
 
 Supported backbones:
   - baseline      : simple 3-block CNN trained from scratch (fast, no pretrained weights)
-  - perceptron    : simple multi-layer perceptron baseline (minimal, no convolutions)
   - resnet50      : ResNet50 pretrained on ImageNet
   - efficientnetb3: EfficientNetB3 pretrained on ImageNet
   - vgg16         : VGG16 pretrained on ImageNet
@@ -12,7 +11,8 @@ Supported backbones:
 
 Two-phase training (transfer learning only):
   Phase 1 - freeze_base=True : only the classification head is trained
-  Phase 2 - freeze_base=False: the full network is fine-tuned at a lower learning rate
+  Phase 2 - configurable unfrozen layers: the backbone is fine-tuned with a lower
+            learning rate and an optional number of unfrozen tail layers
   Set fine_tune_epochs in config to trigger Phase 2 automatically from train.py.
 """
 
@@ -22,16 +22,6 @@ OPTIMIZERS = {
     "adam":     tf.keras.optimizers.Adam,
     "sgd":      tf.keras.optimizers.SGD,
     "rmsprop":  tf.keras.optimizers.RMSprop,
-}
-
-POOLING_TYPES = {
-    "global_average_pooling2d": tf.keras.layers.GlobalAveragePooling2D,
-    "flatten":                   tf.keras.layers.Flatten,
-}
-
-
-LOSS_FUNCTIONS = {
-    "sparse_categorical_crossentropy": "sparse_categorical_crossentropy",
 }
 
 BACKBONES = {
@@ -89,47 +79,69 @@ def _resolve_metrics(metric_names, num_classes):
             # Custom metric for sparse categorical labels
             resolved.append(SparseCategoricalF1Score(num_classes, name="f1_score"))
         
+        elif m == "auc":
+            # AUC is complex with sparse labels; compute it in evaluation instead
+            # Skip adding it here to avoid training errors
+            pass
         else:
             resolved.append(m)
     return resolved
 
 
-def _compile(model, config, num_classes=None):
-    """Compile model using settings from config dict.
-    
-    Config parameters:
-        optimizer (str):  "adam", "sgd", or "rmsprop" (default: "adam")
-        learning_rate (float): Learning rate for optimizer (default: 1e-3)
-        loss (str):       "sparse_categorical_crossentropy" or "focal_sparse_categorical_crossentropy"
-                         (default: "sparse_categorical_crossentropy")
-        loss_kwargs (dict): Additional arguments for custom loss functions 
-                           (e.g., alpha and gamma for focal loss)
-        metrics (list):   List of metric names (default: ["f1_score"])
-    """
+def _compile(model, config, num_classes=None, learning_rate=None):
+    """Compile model using settings from config dict."""
     cfg           = config or {}
     optimizer_cls = OPTIMIZERS.get(cfg.get("optimizer", "adam").lower(), tf.keras.optimizers.Adam)
-    learning_rate = cfg.get("learning_rate", 1e-3)
-    
-    # Handle loss function selection
-    loss_type = cfg.get("loss", "sparse_categorical_crossentropy").lower()
-    if loss_type in LOSS_FUNCTIONS:
-        loss_fn = LOSS_FUNCTIONS[loss_type]
-        # If it's a custom loss class, instantiate it; otherwise use as-is
-        if isinstance(loss_fn, type):
-            loss_kwargs = cfg.get("loss_kwargs", {})
-            loss = loss_fn(**loss_kwargs)
-        else:
-            loss = loss_fn
-    else:
-        # Fallback to sparse_categorical_crossentropy if not recognized
-        loss = "sparse_categorical_crossentropy"
-    
-    metrics = _resolve_metrics(cfg.get("metrics", ["f1_score"]), num_classes)
+    learning_rate = cfg.get("learning_rate", 1e-3) if learning_rate is None else learning_rate
+    loss          = cfg.get("loss", "sparse_categorical_crossentropy")
+    metrics       = _resolve_metrics(cfg.get("metrics", ["f1_score"]), num_classes)
     model.compile(
         optimizer=optimizer_cls(learning_rate=learning_rate),
         loss=loss,
         metrics=metrics,
     )
+
+
+def configure_fine_tuning(model, unfrozen_layers):
+    """Unfreeze the last N backbone layers and keep the classification head trainable."""
+    if isinstance(unfrozen_layers, str):
+        if unfrozen_layers != "all":
+            raise ValueError(
+                "fine_tune_unfrozen_layers must be a positive integer or 'all'."
+            )
+    elif isinstance(unfrozen_layers, bool) or not isinstance(unfrozen_layers, int):
+        raise ValueError(
+            "fine_tune_unfrozen_layers must be a positive integer or 'all'."
+        )
+
+    backbone = next((layer for layer in model.layers if isinstance(layer, tf.keras.Model)), None)
+    if backbone is None:
+        raise ValueError("Could not locate a transfer-learning backbone in the model.")
+
+    total_layers = len(backbone.layers)
+    backbone.trainable = True
+    if unfrozen_layers == "all":
+        for layer in backbone.layers:
+            layer.trainable = True
+    else:
+        if unfrozen_layers <= 0:
+            raise ValueError(
+                "fine_tune_unfrozen_layers must be a positive integer or 'all'."
+            )
+        if unfrozen_layers > total_layers:
+            raise ValueError(
+                f"fine_tune_unfrozen_layers={unfrozen_layers} exceeds the backbone "
+                f"layer count ({total_layers})."
+            )
+        frozen_until = total_layers - unfrozen_layers
+        for index, layer in enumerate(backbone.layers):
+            layer.trainable = index >= frozen_until
+
+    for layer in model.layers:
+        if layer is not backbone:
+            layer.trainable = True
+
+    return total_layers
 
 
 def build_baseline(num_classes, img_size, config):
@@ -161,37 +173,9 @@ def build_baseline(num_classes, img_size, config):
     return model
 
 
-def build_perceptron(num_classes, img_size, config):
-    """Simple multi-layer perceptron (no convolutions) baseline.
-    
-    Flattens the image and passes through a single dense layer.
-    Useful as a sanity check for the dataset.
-    """
-    model = tf.keras.Sequential([
-        tf.keras.Input(shape=(*img_size, 3)),
-        tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(num_classes, activation="softmax"),
-    ])
-    _compile(model, config, num_classes)
-    return model
-
-
 def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, config):
-    """Transfer learning model with pretrained backbone + custom head.
-    
-    Config parameters:
-        pooling_type (str):           "flatten" or "global_average_pooling2d" (default: "global_average_pooling2d")
-        hidden_layer_sizes (list):    List of integers specifying neurons in each hidden layer (default: [])
-        dropout_rate (float):         Dropout rate between layers (default: 0.4)
-        batch_norm (bool):            Enable batch normalization between layers (default: true)
-    """
+    """Transfer learning model with pretrained backbone + custom head."""
     backbone_cls, preprocess_fn = BACKBONES[backbone_name]
-    
-    cfg = config or {}
-    pooling_type = cfg.get("pooling_type", "global_average_pooling2d").lower()
-    hidden_layer_sizes = cfg.get("hidden_layer_sizes", [])
-    dropout_rate = cfg.get("dropout_rate", 0.4)
-    batch_norm_enabled = cfg.get("batch_norm", True)
 
     inputs = tf.keras.Input(shape=(*img_size, 3))
 
@@ -212,18 +196,9 @@ def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, conf
     )
     base.trainable = not freeze_base
 
-    # Apply pooling: flatten or global average pooling
-    pooling_layer_cls = POOLING_TYPES.get(pooling_type, tf.keras.layers.GlobalAveragePooling2D)
-    x = pooling_layer_cls()(base.output)
-
-    # Add configurable hidden layers with batch normalization and dropout
-    for hidden_size in hidden_layer_sizes:
-        x = tf.keras.layers.Dense(hidden_size, activation="relu")(x)
-        if batch_norm_enabled:
-            x = tf.keras.layers.BatchNormalization()(x)
-        x = tf.keras.layers.Dropout(dropout_rate)(x)
-
-    # Output classification layer
+    x = tf.keras.layers.GlobalAveragePooling2D()(base.output)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Dropout(0.4)(x)
     outputs = tf.keras.layers.Dense(num_classes, activation="softmax")(x)
 
     model = tf.keras.Model(inputs, outputs)
@@ -236,11 +211,8 @@ def build_model(backbone: str, num_classes: int, img_size=(224, 224), freeze_bas
     Build and compile a model for artist classification.
 
     Args:
-        backbone:     "baseline", "perceptron", "resnet50", "efficientnetb3", "vgg16",
+        backbone:     "baseline", "resnet50", "efficientnetb3", "vgg16",
                       "mobilenetv3", or "densenet121".
-                      - baseline: Simple 3-block CNN (fast, trained from scratch)
-                      - perceptron: Simple MLP (minimal baseline for sanity check)
-                      - Others: Pretrained transfer learning models
         num_classes:  Number of output classes.
         img_size:     Spatial dimensions (height, width).
         freeze_base:  For transfer learning — freeze backbone weights in Phase 1.
@@ -253,11 +225,8 @@ def build_model(backbone: str, num_classes: int, img_size=(224, 224), freeze_bas
 
     if backbone == "baseline":
         return build_baseline(num_classes, img_size, config)
-    
-    if backbone == "perceptron":
-        return build_perceptron(num_classes, img_size, config)
 
     if backbone not in BACKBONES:
-        raise ValueError(f"Unsupported backbone: '{backbone}'. Choose from: baseline, perceptron, {', '.join(BACKBONES)}")
+        raise ValueError(f"Unsupported backbone: '{backbone}'. Choose from: baseline, {', '.join(BACKBONES)}")
 
     return build_transfer_model(backbone, num_classes, img_size, freeze_base, config)
