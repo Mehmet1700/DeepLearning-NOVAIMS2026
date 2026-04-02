@@ -11,7 +11,8 @@ Supported backbones:
 
 Two-phase training (transfer learning only):
   Phase 1 - freeze_base=True : only the classification head is trained
-  Phase 2 - freeze_base=False: the full network is fine-tuned at a lower learning rate
+  Phase 2 - configurable unfrozen layers: the backbone is fine-tuned with a lower
+            learning rate and an optional number of unfrozen tail layers
   Set fine_tune_epochs in config to trigger Phase 2 automatically from train.py.
 """
 
@@ -87,11 +88,11 @@ def _resolve_metrics(metric_names, num_classes):
     return resolved
 
 
-def _compile(model, config, num_classes=None):
+def _compile(model, config, num_classes=None, learning_rate=None):
     """Compile model using settings from config dict."""
     cfg           = config or {}
     optimizer_cls = OPTIMIZERS.get(cfg.get("optimizer", "adam").lower(), tf.keras.optimizers.Adam)
-    learning_rate = cfg.get("learning_rate", 1e-3)
+    learning_rate = cfg.get("learning_rate", 1e-3) if learning_rate is None else learning_rate
     loss          = cfg.get("loss", "sparse_categorical_crossentropy")
     metrics       = _resolve_metrics(cfg.get("metrics", ["f1_score"]), num_classes)
     model.compile(
@@ -99,6 +100,48 @@ def _compile(model, config, num_classes=None):
         loss=loss,
         metrics=metrics,
     )
+
+
+def configure_fine_tuning(model, unfrozen_layers):
+    """Unfreeze the last N backbone layers and keep the classification head trainable."""
+    if isinstance(unfrozen_layers, str):
+        if unfrozen_layers != "all":
+            raise ValueError(
+                "fine_tune_unfrozen_layers must be a positive integer or 'all'."
+            )
+    elif isinstance(unfrozen_layers, bool) or not isinstance(unfrozen_layers, int):
+        raise ValueError(
+            "fine_tune_unfrozen_layers must be a positive integer or 'all'."
+        )
+
+    backbone = next((layer for layer in model.layers if isinstance(layer, tf.keras.Model)), None)
+    if backbone is None:
+        raise ValueError("Could not locate a transfer-learning backbone in the model.")
+
+    total_layers = len(backbone.layers)
+    backbone.trainable = True
+    if unfrozen_layers == "all":
+        for layer in backbone.layers:
+            layer.trainable = True
+    else:
+        if unfrozen_layers <= 0:
+            raise ValueError(
+                "fine_tune_unfrozen_layers must be a positive integer or 'all'."
+            )
+        if unfrozen_layers > total_layers:
+            raise ValueError(
+                f"fine_tune_unfrozen_layers={unfrozen_layers} exceeds the backbone "
+                f"layer count ({total_layers})."
+            )
+        frozen_until = total_layers - unfrozen_layers
+        for index, layer in enumerate(backbone.layers):
+            layer.trainable = index >= frozen_until
+
+    for layer in model.layers:
+        if layer is not backbone:
+            layer.trainable = True
+
+    return total_layers
 
 
 def build_baseline(num_classes, img_size, config):

@@ -3,7 +3,8 @@ Training loop for artist classification.
 
 Supports two-phase training for transfer learning models:
   Phase 1: backbone frozen, only head is trained
-  Phase 2: full network fine-tuned at a lower learning rate (fine_tune_epochs in config)
+  Phase 2: fine-tune with a lower learning rate and a configurable number of
+           unfrozen backbone tail layers
 """
 
 import argparse
@@ -23,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import tensorflow as tf
 
 from src.dataset import load_split
-from src.model import OPTIMIZERS, _resolve_metrics, build_model
+from src.model import _compile, build_model, configure_fine_tuning
 
 
 def make_callbacks(checkpoint_dir, log_dir, patience):
@@ -79,6 +80,7 @@ def train(config_path: str):
     num_classes = cfg["num_classes"]
     backbone = cfg.get("backbone", "baseline")
     patience = cfg.get("patience", 5)
+    fine_tune_unfrozen_layers = cfg.get("fine_tune_unfrozen_layers", "all")
 
     augment = cfg.get("augment", False)
     train_ds, _ = load_split(
@@ -130,16 +132,28 @@ def train(config_path: str):
         # Compute and log AUC for Phase 1
         compute_and_log_auc(model, val_ds, num_classes, "phase1", 0)
 
-        # ── Phase 2: fine-tune full network (transfer learning only) ─────────────
+        # ── Phase 2: fine-tune with configurable backbone unfreezing ──────────────
         fine_tune_epochs = cfg.get("fine_tune_epochs", 0)
         if fine_tune_epochs > 0 and backbone != "baseline":
+            total_backbone_layers = configure_fine_tuning(
+                model, fine_tune_unfrozen_layers
+            )
+            unfrozen_label = (
+                str(total_backbone_layers)
+                if fine_tune_unfrozen_layers == "all"
+                else str(fine_tune_unfrozen_layers)
+            )
+
             print(f"\n{'=' * 60}")
-            print(f"Phase 2 — Fine-tuning    |  backbone: {backbone}  |  frozen: False")
+            print(
+                "Phase 2 — Fine-tuning    |  "
+                f"backbone: {backbone}  |  "
+                f"unfrozen layers: {unfrozen_label}/{total_backbone_layers}"
+            )
             print(f"{'=' * 60}\n")
 
-            # Unfreeze all layers
-            for layer in model.layers:
-                layer.trainable = True
+            # Recompile so the updated trainable flags take effect for this stage.
+            _compile(model, cfg, num_classes)
 
             history_phase2a = model.fit(
                 train_ds,
@@ -162,16 +176,7 @@ def train(config_path: str):
 
             # Recompile at a much lower learning rate
             fine_tune_lr = cfg.get("fine_tune_lr", 1e-5)
-            optimizer_cls = OPTIMIZERS.get(
-                cfg.get("optimizer", "adam").lower(), tf.keras.optimizers.Adam
-            )
-            loss = cfg.get("loss", "sparse_categorical_crossentropy")
-            metrics = _resolve_metrics(cfg.get("metrics", ["f1_score"]), num_classes)
-            model.compile(
-                optimizer=optimizer_cls(learning_rate=fine_tune_lr),
-                loss=loss,
-                metrics=metrics,
-            )
+            _compile(model, cfg, num_classes, learning_rate=fine_tune_lr)
 
             history_phase2b = model.fit(
                 train_ds,
@@ -199,7 +204,11 @@ def train(config_path: str):
         mlflow.log_param("total_epochs_phase1", epochs)
         if fine_tune_epochs > 0 and backbone != "baseline":
             mlflow.log_param("total_epochs_phase2", fine_tune_epochs * 2)
-            mlflow.log_param("fine_tune_lr", fine_tune_epochs)
+            mlflow.log_param(
+                "fine_tune_unfrozen_layers",
+                fine_tune_unfrozen_layers,
+            )
+            mlflow.log_param("fine_tune_lr", fine_tune_lr)
 
         print("\nTraining complete.")
 

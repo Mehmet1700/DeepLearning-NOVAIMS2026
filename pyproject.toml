@@ -1,0 +1,31 @@
+[project]
+name = "deeplearning-novaims2026"
+version = "0.1.0"
+description = "WikiArt artist classification preprocessing, training, and evaluation."
+readme = "README.md"
+requires-python = ">=3.13"
+
+[dependency-groups]
+preprocessing = [
+    "imagehash>=4.3.2",
+    "pillow",
+]
+ml = [
+    "mlflow>=3.10.1",
+    "numpy>=2.4.3",
+    "pyyaml",
+    "scikit-learn",
+    "tensorflow>=2.21.0",
+]
+dev = [
+    "ipykernel>=7.2.0",
+    "matplotlib>=3.10.8",
+    "pandas>=2.3.3,<3",
+    "plotly>=6.6.0",
+    "seaborn>=0.13.2",
+    "squarify>=0.4.4",
+    "torch",
+    "torchvision",
+    "transformers",
+    "tqdm>=4.67.3",
+]
