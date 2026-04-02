@@ -8,7 +8,8 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parents[1]
 RAW_DATASET_DIR_NAME = "wikiart"
 SOURCE_DIR = PROJECT_ROOT / "data" / RAW_DATASET_DIR_NAME
 OUTPUT_DIR = PROJECT_ROOT / "data"
