@@ -9,7 +9,7 @@ val_dir:   data/validation
 test_dir:  data/test
 
 # --- Model ---
-#backbone:    efficientnetb3 
+backbone:    perceptron 
 num_classes: 23
 img_size:    [128, 128]
 
@@ -18,10 +18,19 @@ batch_size: 128
 epochs:     5
 patience:   5               # EarlyStopping patience
 
-# --- Augmentation --- (disabled for baseline comparison)
+# --- Fine-tuning --- (applies to transfer learning models only)
+fine_tune_epochs:    0      # set to 0 to disable Phase 2
+fine_tune_lr:        0.00001
+num_unfreeze_layers: -1      # layers to unfreeze in Phase 2 (-1 = all, N = last N layers)
+
+# --- Augmentation ---
+augment: false                 # Enable data augmentation
 # rotation_range:  0.1
 # zoom_range:      0.1
 # contrast_range:  0.1
+
+# --- Class Weight Balancing ---
+compute_class_weight: false    # Auto-compute balanced class weights
 
 
 # --- Compile ---
@@ -30,8 +39,13 @@ learning_rate: 0.001
 loss:          sparse_categorical_crossentropy
 metrics:
   - f1_score
-  - auc
+
+# --- Head Architecture ---
+pooling_type:        global_average_pooling2d
+hidden_layer_sizes:  []
+dropout_rate:        0.4
+batch_norm:          true
 
 # --- Output paths ---
-checkpoint_dir: outputs/checkpoints
-log_dir:        outputs/logs
+checkpoint_dir: outputs/checkpoints/custom_local
+log_dir:        outputs/logs/custom_local

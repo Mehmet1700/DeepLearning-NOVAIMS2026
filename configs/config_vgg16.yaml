@@ -19,11 +19,16 @@ patience:   5
 
 fine_tune_epochs:    10
 fine_tune_lr:        0.00001
+num_unfreeze_layers: -1      # layers to unfreeze in Phase 2 (-1 = all, N = last N layers)
 
-# --- Augmentation --- (disabled for baseline comparison)
+# --- Augmentation ---
+augment: false                 # Enable data augmentation
 # rotation_range:  0.1
 # zoom_range:      0.1
 # contrast_range:  0.1
+
+# --- Class Weight Balancing ---
+compute_class_weight: false    # Auto-compute balanced class weights
 
 # --- Compile ---
 optimizer:     adam
@@ -31,7 +36,12 @@ learning_rate: 0.001
 loss:          sparse_categorical_crossentropy
 metrics:
   - f1_score
-  - auc
+
+# --- Head Architecture ---
+pooling_type:        global_average_pooling2d
+hidden_layer_sizes:  []
+dropout_rate:        0.4
+batch_norm:          true
 
 # --- Output paths ---
 checkpoint_dir: outputs/checkpoints/vgg16

@@ -1,0 +1,270 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# CONFIGURATION TEMPLATE — Artist Classification Model
+# ══════════════════════════════════════════════════════════════════════════════
+# This file documents all available configuration parameters with their possible
+# values and recommended ranges. Copy this file to create new configurations.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DATA CONFIGURATION
+# ─────────────────────────────────────────────────────────────────────────────
+# Paths to training, validation, and test datasets
+# Expected structure: folder/artist_name/image.jpg
+train_dir: data/train           # Path to training dataset
+val_dir:   data/validation      # Path to validation dataset
+test_dir:  data/test            # Path to test dataset
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MODEL ARCHITECTURE
+# ─────────────────────────────────────────────────────────────────────────────
+# Backbone selection:
+#   - baseline      : Simple 3-block CNN trained from scratch (fast, no pretrained weights)
+#   - perceptron    : Simple MLP baseline (minimal, no convolutions, sanity check)
+#   - resnet50      : ResNet50 pretrained on ImageNet (recommended: img_size [224, 224])
+#   - efficientnetb3: EfficientNetB3 pretrained on ImageNet (recommended: img_size [300, 300])
+#   - vgg16         : VGG16 pretrained on ImageNet (recommended: img_size [224, 224])
+#   - mobilenetv3   : MobileNetV3Large pretrained on ImageNet (recommended: img_size [512, 512])
+#   - densenet121   : DenseNet121 pretrained on ImageNet (recommended: img_size [224, 224])
+backbone: baseline              # Model backbone choice
+
+# Number of output classes (artist categories)
+# Range: Integer > 0, typically 10-1000
+num_classes: 23                 # Number of artist classes
+
+# Input image dimensions [height, width]
+# Range: [64, 64] to [512, 512] depending on backbone and GPU memory
+# Recommended:
+#   - baseline/resnet50/vgg16/densenet121: [224, 224]
+#   - efficientnetb3: [300, 300]
+#   - mobilenetv3: [512, 512]
+img_size: [128, 128]            # Input image size (height, width)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TRAINING HYPERPARAMETERS
+# ─────────────────────────────────────────────────────────────────────────────
+# Batch size for training
+# Range: 8-512 depending on GPU memory
+# Recommended: 32-64 for transfer learning, 128 for smaller models
+batch_size: 128                 # Training batch size
+
+# Maximum number of epochs to train
+# Range: 5-300
+# Recommended: 5-10 for quick tests, 30-100 for production
+epochs: 5                       # Maximum training epochs
+
+# Early stopping patience
+# Range: 3-20
+# Patience in epochs without improvement before stopping
+patience: 6                    # EarlyStopping patience
+
+# Fine-tuning epochs (Phase 2 - full network training)
+# Only used for transfer learning models (not baseline)
+# Range: 0-100, typically 5-20
+# Set to 0 to disable Phase 2 and train only the head
+fine_tune_epochs: 10            # Additional fine-tuning epochs
+
+# Learning rate for fine-tuning phase
+# Range: 1e-6 to 1e-4 (much lower than initial learning_rate)
+# Typical: 1e-5 is safe for most backbones
+fine_tune_lr: 0.00001           # Fine-tuning learning rate
+
+# Number of layers to unfreeze during Phase 2
+# Only applies to transfer learning models (not baseline/perceptron)
+# Options:
+#   - -1 or null: Unfreeze all layers (default, recommended)
+#   - N > 0     : Unfreeze last N layers (freeze the first layers)
+# Example: num_unfreeze_layers: 50 means unfreeze last 50 layers, keep first layers frozen
+num_unfreeze_layers: -1         # Number of layers to unfreeze in Phase 2
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OPTIMIZER & LOSS CONFIGURATION
+# ─────────────────────────────────────────────────────────────────────────────
+# Optimizer choice:
+#   - adam    : Adaptive learning rate (recommended, works well for most cases)
+#   - sgd     : Stochastic Gradient Descent (good for fine-tuning)
+#   - rmsprop : RMSProp (alternative adaptive method)
+optimizer: adam                 # Optimizer type
+
+# Initial learning rate
+# Range: 1e-5 to 1e-1 depending on optimizer
+# Recommended: 1e-3 (0.001) for Adam with transfer learning
+learning_rate: 0.001            # Initial learning rate
+
+# Loss function:
+#   - sparse_categorical_crossentropy : Standard classification loss (default)
+loss: sparse_categorical_crossentropy
+
+# Metrics to monitor during training
+# Options: f1_score, accuracy, etc.
+# f1_score is recommended for imbalanced datasets
+metrics:
+  - f1_score                    # F1 Score (macro average across classes)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CLASSIFICATION HEAD ARCHITECTURE
+# ─────────────────────────────────────────────────────────────────────────────
+# Only applies to transfer learning models (not baseline)
+
+# Pooling layer type after the backbone
+# Options:
+#   - global_average_pooling2d : Average pooling (recommended, preserves spatial info)
+#   - flatten                  : Flatten layer (uses more parameters)
+pooling_type: global_average_pooling2d
+
+# Hidden dense layers before output
+# Syntax: [size1, size2, ...] where size is number of neurons
+# Examples:
+#   - []           : No hidden layers (direct head)
+#   - [512]        : One hidden layer with 512 neurons
+#   - [1024, 512]  : Two hidden layers with 1024 and 512 neurons
+# Range per layer: 64-2048 neurons typically
+hidden_layer_sizes: []          # Hidden layer neuron counts
+
+# Dropout rate between layers
+# Range: 0.0-0.6 (0.0 = no dropout, 0.5 = drop 50% of connections)
+# Recommended: 0.3-0.5 for regularization
+dropout_rate: 0.4               # Dropout rate (0-1)
+
+# Batch normalization between layers
+# Options: true or false
+# Recommended: true (stabilizes training)
+batch_norm: true                # Enable batch normalization
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DATA AUGMENTATION (Optional)
+# ─────────────────────────────────────────────────────────────────────────────
+# Enable/disable data augmentation
+# Options: true or false
+augment: false                  # Enable data augmentation
+
+# Rotation range as fraction of full rotation
+# Range: 0.0-0.5 (0.1 = ±36 degrees)
+rotation_range: 0.1
+
+# Zoom range as fraction
+# Range: 0.0-0.5 (0.2 = ±20% zoom)
+zoom_range: 0.1
+
+# Contrast range as fraction
+# Range: 0.0-0.5
+contrast_range: 0.1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CLASS WEIGHT BALANCING (Optional)
+# ─────────────────────────────────────────────────────────────────────────────
+# Compute class weights from training data to handle imbalanced datasets
+# Options: true or false
+# Set to true if some artists have fewer images than others
+compute_class_weight: false     # Auto-compute balanced class weights
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OUTPUT PATHS
+# ─────────────────────────────────────────────────────────────────────────────
+# Directory to save best model checkpoints
+checkpoint_dir: outputs/checkpoints/custom
+
+# Directory to save TensorBoard logs
+log_dir: outputs/logs/custom
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE CONFIGURATIONS
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Perceptron Baseline (Sanity Check, <1 min):
+#   backbone: perceptron
+#   img_size: [128, 128]
+#   batch_size: 256
+#   epochs: 10
+#   fine_tune_epochs: 0
+#   augment: false
+#   compute_class_weight: false
+
+# Quick Test (5 min on GPU):
+#   backbone: baseline
+#   img_size: [128, 128]
+#   batch_size: 128
+#   epochs: 5
+#   fine_tune_epochs: 0
+#   augment: false
+#   compute_class_weight: false
+
+# Baseline with Data Augmentation:
+#   backbone: baseline
+#   img_size: [256, 256]
+#   batch_size: 64
+#   epochs: 40
+#   fine_tune_epochs: 0
+#   augment: true
+#   rotation_range: 0.1
+#   zoom_range: 0.1
+#   contrast_range: 0.1
+#   compute_class_weight: false
+
+# Transfer Learning with Selective Layer Unfreezing:
+#   backbone: resnet50
+#   img_size: [224, 224]
+#   batch_size: 32
+#   epochs: 30
+#   fine_tune_epochs: 10
+#   num_unfreeze_layers: 50
+#   augment: false
+#   compute_class_weight: false
+
+# Transfer Learning (Fast, ~30 min):
+#   backbone: resnet50
+#   img_size: [224, 224]
+#   batch_size: 32
+#   epochs: 30
+#   fine_tune_epochs: 10
+#   augment: false
+#   compute_class_weight: false
+
+# Transfer Learning with Balanced Classes:
+#   backbone: resnet50
+#   img_size: [224, 224]
+#   batch_size: 32
+#   epochs: 30
+#   fine_tune_epochs: 10
+#   num_unfreeze_layers: -1
+#   augment: true
+#   rotation_range: 0.15
+#   zoom_range: 0.15
+#   contrast_range: 0.1
+#   compute_class_weight: true
+
+# Transfer Learning (Quality, ~60 min):
+#   backbone: efficientnetb3
+#   img_size: [300, 300]
+#   batch_size: 64
+#   epochs: 50
+#   fine_tune_epochs: 20
+#   num_unfreeze_layers: -1
+#   hidden_layer_sizes: [512]
+#   augment: false
+#   compute_class_weight: false
+
+# Transfer Learning with Custom Head:
+#   backbone: densenet121
+#   img_size: [224, 224]
+#   hidden_layer_sizes: [1024, 512]
+#   dropout_rate: 0.5
+#   batch_norm: true
+#   batch_size: 32
+#   epochs: 40
+#   fine_tune_epochs: 15
+#   num_unfreeze_layers: -1
+#   augment: true
+#   rotation_range: 0.2
+#   zoom_range: 0.2
+#   contrast_range: 0.15
+#   compute_class_weight: true
+
+# ══════════════════════════════════════════════════════════════════════════════

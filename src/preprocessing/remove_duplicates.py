@@ -57,7 +57,7 @@ def _remove_duplicate_images() -> dict[str, int]:
             target_path.unlink()
             stats["removed"] += 1
         else:
-            print(f"File not found: {target_path}")
+            print(f"File already deleted: {target_path}")
             stats["missing"] += 1
 
     return stats
