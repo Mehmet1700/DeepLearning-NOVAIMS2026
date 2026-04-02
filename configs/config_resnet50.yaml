@@ -22,12 +22,12 @@ learning_rate: 0.001        # initial learning rate for Phase 1 / initial compil
 # Phase 2: fine-tune full network at lower lr
 fine_tune_epochs:    25      # additional epochs after unfreezing backbone
 fine_tune_lr:        0.00001 # lower lr for fine-tuning
+num_unfreeze_layers: -1      # layers to unfreeze in Phase 2 (-1 = all, N = last N layers)
 
 # --- Augmentation --- (disabled for baseline comparison)
-# augment:         true      # enables training-time horizontal flip + the ranges below
-# rotation_range:  0.1       # RandomRotation factor
-# zoom_range:      0.1       # RandomZoom factor
-# contrast_range:  0.1       # RandomContrast factor
+# rotation_range:  0.1
+# zoom_range:      0.1
+# contrast_range:  0.1
 
 # --- Compile ---
 optimizer:     adam         # supported: adam, sgd, rmsprop
@@ -35,7 +35,12 @@ loss:          sparse_categorical_crossentropy
 # f1_score is used during training; auc is skipped in model.compile and logged separately.
 metrics:
   - f1_score
-  - auc
+
+# --- Head Architecture ---
+pooling_type:        global_average_pooling2d
+hidden_layer_sizes:  []
+dropout_rate:        0.4
+batch_norm:          true
 
 # --- Output paths ---
 checkpoint_dir: outputs/checkpoints/resnet50  # saved best/final model directory
