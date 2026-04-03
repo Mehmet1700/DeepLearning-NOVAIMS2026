@@ -3,41 +3,39 @@
 # ──────────────────────────────────────────────
 
 # --- Data ---
-train_dir: data/train       # training split folder
-val_dir:   data/validation  # validation split folder
-test_dir:  data/test        # evaluation split folder
+train_dir: data/train
+val_dir:   data/validation
+test_dir:  data/test
 
 # --- Model ---
-backbone:    resnet50       # supported: baseline, resnet50, efficientnetb3, vgg16, mobilenetv3, densenet121
+backbone:    resnet50
 num_classes: 23
-img_size:    [224, 224]     # ResNet50 native input size: [height, width]
+img_size:    [224, 224]   # ResNet50 native input size
 
 # --- Training ---
 batch_size: 32
-epochs:     10
-patience:   5               # EarlyStopping patience on val_loss
+epochs:     30
+patience:   5
 
 # Phase 1: train head only (backbone frozen)
-learning_rate: 0.001        # initial learning rate for Phase 1 / initial compile
-# Phase 2: fine-tune at lower lr by unfreezing the last N backbone layers
-fine_tune_epochs:          25      # additional Phase 2 epochs
-fine_tune_lr:              0.00001 # lower lr for fine-tuning
-fine_tune_unfrozen_layers: 30      # N = unfreeze backbone.layers[-N:]; use 'all' for a fully unfrozen model
+learning_rate: 0.001
+# Phase 2: fine-tune backbone at lower lr
+fine_tune_epochs:          25
+fine_tune_lr:              0.00001
+fine_tune_unfrozen_layers: 30      # last N backbone layers to unfreeze; use "all" for full fine-tune
 
 # --- Augmentation --- (disabled for baseline comparison)
-# augment:         true      # enables training-time horizontal flip + the ranges below
-# rotation_range:  0.1       # RandomRotation factor
-# zoom_range:      0.1       # RandomZoom factor
-# contrast_range:  0.1       # RandomContrast factor
+augment: false
+# rotation_range:  0.1
+# zoom_range:      0.1
+# contrast_range:  0.1
 
 # --- Compile ---
-optimizer:     adam         # supported: adam, sgd, rmsprop
-loss:          sparse_categorical_crossentropy
-# f1_score is used during training; auc is skipped in model.compile and logged separately.
+optimizer: adam
+loss:      sparse_categorical_crossentropy
 metrics:
   - f1_score
-  - auc
 
 # --- Output paths ---
-checkpoint_dir: outputs/checkpoints/resnet50  # saved best/final model directory
-# log_dir:        outputs/logs/resnet50         # TensorBoard log directory
+checkpoint_dir: outputs/checkpoints/resnet50
+log_dir:        outputs/logs/resnet50

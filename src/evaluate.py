@@ -160,9 +160,10 @@ def evaluate(config_path: str, weights_path: str | None = None):
     # Initialize MLflow
     mlflow.set_experiment("Artist_Classification_Test")
 
-    with mlflow.start_run(run_name=f"Eval_{backbone}_{datetime.now().strftime('%d-%m-%Y_%H-%M-%S')}", nested=True):
-        # Log YAML configuration parameters
-        mlflow.log_params(cfg)
+    with mlflow.start_run(run_name=f"Eval_{backbone}_{datetime.now().strftime('%d-%m-%Y_%H-%M-%S')}"):
+        # Log config — convert lists to strings so MLflow doesn't crash
+        safe_cfg = {k: str(v) if isinstance(v, (list, dict)) else v for k, v in cfg.items()}
+        mlflow.log_params(safe_cfg)
         
         y_true, y_pred, y_pred_proba = [], [], []
         for images, labels in test_ds:
@@ -186,6 +187,7 @@ def evaluate(config_path: str, weights_path: str | None = None):
         auc_ovo = roc_auc_score(y_true_binarized, y_pred_proba, multi_class='ovo', average='weighted')
         
         # Log metrics to MLflow
+        mlflow.log_metric("test_accuracy", float(accuracy))
         mlflow.log_metric("test_f1_weighted", f1_weighted)
         mlflow.log_metric("test_f1_macro", f1_macro)
         mlflow.log_metric("test_auc_ovr", auc_ovr)
