@@ -158,6 +158,7 @@ def evaluate(config_path: str, weights_path: str | None = None):
     )
 
     # Initialize MLflow
+    mlflow.set_tracking_uri("sqlite:///mlflow.db")
     mlflow.set_experiment("Artist_Classification_Test")
 
     with mlflow.start_run(run_name=f"Eval_{backbone}_{datetime.now().strftime('%d-%m-%Y_%H-%M-%S')}"):

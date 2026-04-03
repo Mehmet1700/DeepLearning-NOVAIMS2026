@@ -76,7 +76,7 @@ BACKBONE_LAYER_NAMES = {
     "resnet50": "resnet50",
     "efficientnetb3": "efficientnetb3",
     "vgg16": "vgg16",
-    "mobilenetv3": "MobileNetV3Large",
+    "mobilenetv3": "MobilenetV3large",
     "densenet121": "densenet121",
 }
 

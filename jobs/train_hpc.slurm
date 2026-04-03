@@ -28,17 +28,23 @@ echo "================================================"
 
 # --- Environment setup ---
 module load CUDA/12.1.1
+module load cuDNN/8.9.2.26-CUDA-12.1.1
 module load Python/3.11.3-GCCcore-12.3.0
 source .venv/bin/activate
+
+# Point XLA to the CUDA nvvm/libdevice compiler (set by EasyBuild module)
+export XLA_FLAGS="--xla_gpu_cuda_data_dir=$EBROOTCUDA"
+# Suppress TF info/warning spam in logs
+export TF_CPP_MIN_LOG_LEVEL=2
+# Dedicated GPU threads — reduces scheduling overhead on single-GPU jobs
+export TF_GPU_THREAD_MODE=gpu_private
+export TF_GPU_THREAD_COUNT=1
 
 # --- Debug info ---
 echo "Python     : $(which python3) — $(python3 --version)"
 echo "Working dir: $(pwd)"
 echo "Config     : $CONFIG"
 nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader
-echo "train      : $(find data/train -name '*.jpg' 2>/dev/null | wc -l) images"
-echo "validation : $(find data/validation -name '*.jpg' 2>/dev/null | wc -l) images"
-echo "test       : $(find data/test -name '*.jpg' 2>/dev/null | wc -l) images"
 echo "------------------------------------------------"
 
 echo "Starting training..."

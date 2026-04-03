@@ -33,8 +33,11 @@ echo "test       : $(find data/test -name '*.jpg' 2>/dev/null | wc -l) images"
 echo "------------------------------------------------"
 
 module load CUDA/12.1.1
+module load cuDNN/8.9.2.26-CUDA-12.1.1
 module load Python/3.11.3-GCCcore-12.3.0
 source .venv/bin/activate
+
+export XLA_FLAGS="--xla_gpu_cuda_data_dir=$EBROOTCUDA"
 
 python3 src/evaluate.py --config $CONFIG --weights $WEIGHTS
 EXIT_CODE=$?

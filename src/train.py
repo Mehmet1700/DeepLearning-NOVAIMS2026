@@ -16,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import tensorflow as tf
 
+tf.keras.mixed_precision.set_global_policy("mixed_bfloat16")
+
 from src.dataset import load_split
 from src.model import _compile, build_model, configure_fine_tuning
 
@@ -89,6 +91,7 @@ def train(config_path: str):
     checkpoint_dir = cfg.get("checkpoint_dir", "outputs/checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
 
+    mlflow.set_tracking_uri("sqlite:///mlflow.db")
     mlflow.set_experiment("Artist_Classification")
     mlflow.tensorflow.autolog(log_models=False)
 
