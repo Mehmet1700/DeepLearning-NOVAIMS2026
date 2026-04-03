@@ -32,7 +32,8 @@ nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader
 echo "test       : $(find data/test -name '*.jpg' 2>/dev/null | wc -l) images"
 echo "------------------------------------------------"
 
-module load TensorFlow/2.15.1-foss-2023a-CUDA-12.1.1
+module load CUDA/12.1.1
+module load Python/3.11.3-GCCcore-12.3.0
 source .venv/bin/activate
 
 python3 src/evaluate.py --config $CONFIG --weights $WEIGHTS

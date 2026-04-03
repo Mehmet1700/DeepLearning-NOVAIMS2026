@@ -27,7 +27,8 @@ echo "Start time : $(date)"
 echo "================================================"
 
 # --- Environment setup ---
-module load TensorFlow/2.15.1-foss-2023a-CUDA-12.1.1
+module load CUDA/12.1.1
+module load Python/3.11.3-GCCcore-12.3.0
 source .venv/bin/activate
 
 # --- Debug info ---
