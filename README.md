@@ -5,8 +5,10 @@ Dataset preparation, exploration, and baseline CNN experimentation for WikiArt a
 ## Current Status
 
 - `src/train.py` is the main ML entrypoint; its direct runtime dependencies now live in the `ml` dependency group.
+- Transfer-learning fine-tuning now keeps the pretrained application backbone as a named nested Keras submodel, so Phase 2 layer unfreezing works for the transfer backbones.
 - `src/evaluate.py` and `src/compare_runs.py` build on the training stack and additionally need plotting dependencies from the `dev` group.
 - `src/preprocessing/split_dataset.py` builds deterministic train, validation, and test splits from `data/wikiart/`.
+- `tests/test_model.py` contains regression coverage for transfer-model backbone lookup and `fine_tune_unfrozen_layers` validation.
 - `src/utils.py` contains image-hashing helpers used in duplicate-analysis and EDA workflows; those dependencies live in the `preprocessing` group.
 - Notebooks and exploratory analysis live behind the `dev` group instead of the core runtime path.
 - `data/` is local-only and ignored by Git, so raw images and generated splits stay out of version control.
@@ -73,11 +75,11 @@ uv run --group ml python src/evaluate.py --config configs/config_local.yaml --we
 uv run --group ml python src/compare_runs.py --outputs_dir outputs
 ```
 
-For ResNet50 fine-tuning, `configs/config_resnet50.yaml` now supports:
+Transfer-learning fine-tuning configs such as `configs/config_resnet50.yaml` support:
 
 - `fine_tune_epochs`: number of Phase 2 epochs.
 - `fine_tune_lr`: learning rate used for the lower-LR Phase 2 pass.
-- `fine_tune_frozen_layers`: number of backbone layers to keep frozen in Phase 2. Use `0` for a fully unfrozen model.
+- `fine_tune_unfrozen_layers`: number of backbone tail layers to unfreeze in Phase 2. Use `all` for a fully unfrozen model.
 
 ## Project Tree
 
@@ -86,6 +88,7 @@ Core project files:
 ```text
 DeepLearning-NOVAIMS2026/
 ├── configs/
+│   ├── config_template.yaml
 │   ├── config_densenet121.yaml
 │   ├── config_efficientnetb3.yaml
 │   ├── config_local.yaml
@@ -95,6 +98,7 @@ DeepLearning-NOVAIMS2026/
 ├── documents/
 │   └── Deep_Learning_Project.pdf
 ├── jobs/
+│   ├── evaluate_hpc.slurm
 │   └── train_hpc.slurm
 ├── notebooks/
 │   ├── Benchmarking.ipynb
@@ -118,6 +122,8 @@ DeepLearning-NOVAIMS2026/
 │   │   └── split_dataset.py
 │   ├── train.py
 │   └── utils.py
+├── tests/
+│   └── test_model.py
 ├── HPC_SETUP.md
 ├── INSTRUCTIONS.md
 ├── README.md
@@ -129,6 +135,7 @@ DeepLearning-NOVAIMS2026/
 
 - `configs/`: YAML configuration files for local runs and backbone-specific training jobs.
 - `documents/Deep_Learning_Project.pdf`: project brief and reference material.
+- `jobs/evaluate_hpc.slurm`: SLURM job definition for HPC evaluation runs.
 - `jobs/train_hpc.slurm`: SLURM job definition for HPC training runs.
 - `notebooks/`: exploratory analysis, benchmarking, baseline CNN work, and Vision Transformer experiments.
 - `src/__init__.py`: package marker for the shared training and preprocessing modules.
@@ -141,6 +148,7 @@ DeepLearning-NOVAIMS2026/
 - `src/preprocessing/split_dataset.py`: dataset splitter rooted at `data/wikiart` and writing splits under `data/`.
 - `src/train.py`: training entrypoint for the image classification models.
 - `src/utils.py`: image hashing helpers used for duplicate-image analysis workflows.
+- `tests/test_model.py`: regression tests covering transfer-learning backbone lookup and Phase 2 fine-tuning validation.
 - `HPC_SETUP.md`: notes for running the project on the target HPC environment.
 - `INSTRUCTIONS.md`: project workflow notes and runbook-style guidance for the dataset and training pipeline.
 - `README.md`: project overview, setup steps, data layout, and workflow notes.

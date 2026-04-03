@@ -47,6 +47,14 @@ BACKBONES = {
     ),
 }
 
+BACKBONE_LAYER_NAMES = {
+    "resnet50": "resnet50",
+    "efficientnetb3": "efficientnetb3",
+    "vgg16": "vgg16",
+    "mobilenetv3": "MobileNetV3Large",
+    "densenet121": "densenet121",
+}
+
 
 class SparseCategoricalF1Score(tf.keras.metrics.F1Score):
     """F1Score that accepts sparse integer labels instead of one-hot floats."""
@@ -102,7 +110,17 @@ def _compile(model, config, num_classes=None, learning_rate=None):
     )
 
 
-def configure_fine_tuning(model, unfrozen_layers):
+def _get_backbone_layer_name(backbone_name):
+    """Return the nested Keras layer name for a configured backbone key."""
+    backbone_key = backbone_name.lower()
+    if backbone_key not in BACKBONE_LAYER_NAMES:
+        raise ValueError(
+            f"Unsupported backbone: '{backbone_name}'. Choose from: {', '.join(BACKBONE_LAYER_NAMES)}"
+        )
+    return BACKBONE_LAYER_NAMES[backbone_key]
+
+
+def configure_fine_tuning(model, backbone_name, unfrozen_layers):
     """Unfreeze the last N backbone layers and keep the classification head trainable."""
     if isinstance(unfrozen_layers, str):
         if unfrozen_layers != "all":
@@ -114,9 +132,13 @@ def configure_fine_tuning(model, unfrozen_layers):
             "fine_tune_unfrozen_layers must be a positive integer or 'all'."
         )
 
-    backbone = next((layer for layer in model.layers if isinstance(layer, tf.keras.Model)), None)
-    if backbone is None:
-        raise ValueError("Could not locate a transfer-learning backbone in the model.")
+    backbone_layer_name = _get_backbone_layer_name(backbone_name)
+    try:
+        backbone = model.get_layer(backbone_layer_name)
+    except ValueError as exc:
+        raise ValueError(
+            f"Could not locate the '{backbone_layer_name}' backbone in the model."
+        ) from exc
 
     total_layers = len(backbone.layers)
     backbone.trainable = True
@@ -191,12 +213,14 @@ def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, conf
     base = backbone_cls(
         include_top=False,
         weights="imagenet",
-        input_tensor=x,
+        input_shape=(*img_size, 3),
         **extra_kwargs,
     )
     base.trainable = not freeze_base
 
-    x = tf.keras.layers.GlobalAveragePooling2D()(base.output)
+    # Keep the application model nested so fine-tuning can target it explicitly.
+    x = base(x)
+    x = tf.keras.layers.GlobalAveragePooling2D()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Dropout(0.4)(x)
     outputs = tf.keras.layers.Dense(num_classes, activation="softmax")(x)
