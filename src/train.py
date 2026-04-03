@@ -136,7 +136,7 @@ def train(config_path: str):
         fine_tune_epochs = cfg.get("fine_tune_epochs", 0)
         if fine_tune_epochs > 0 and backbone != "baseline":
             total_backbone_layers = configure_fine_tuning(
-                model, fine_tune_unfrozen_layers
+                model, backbone, fine_tune_unfrozen_layers
             )
             unfrozen_label = (
                 str(total_backbone_layers)
