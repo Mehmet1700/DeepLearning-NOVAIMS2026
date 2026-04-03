@@ -1,22 +1,39 @@
-"""
-Model definitions for artist classification.
-
-Supported backbones:
-  - baseline      : simple 3-block CNN trained from scratch (fast, no pretrained weights)
-  - resnet50      : ResNet50 pretrained on ImageNet
-  - efficientnetb3: EfficientNetB3 pretrained on ImageNet
-  - vgg16         : VGG16 pretrained on ImageNet
-  - mobilenetv3   : MobileNetV3Large pretrained on ImageNet
-  - densenet121   : DenseNet121 pretrained on ImageNet
-
-Two-phase training (transfer learning only):
-  Phase 1 - freeze_base=True : only the classification head is trained
-  Phase 2 - configurable unfrozen layers: the backbone is fine-tuned with a lower
-            learning rate and an optional number of unfrozen tail layers
-  Set fine_tune_epochs in config to trigger Phase 2 automatically from train.py.
-"""
+"""Model-building utilities for artist classification."""
 
 import tensorflow as tf
+
+SERIALIZATION_PACKAGE = "deeplearning_novaims2026"
+
+
+@tf.keras.utils.register_keras_serializable(package=SERIALIZATION_PACKAGE)
+def resnet50_preprocess_input(inputs):
+    """Apply ResNet50 preprocessing inside a serializable Lambda wrapper."""
+    return tf.keras.applications.resnet.preprocess_input(inputs)
+
+
+@tf.keras.utils.register_keras_serializable(package=SERIALIZATION_PACKAGE)
+def efficientnetb3_preprocess_input(inputs):
+    """Apply EfficientNetB3 preprocessing inside a serializable Lambda wrapper."""
+    return tf.keras.applications.efficientnet.preprocess_input(inputs)
+
+
+@tf.keras.utils.register_keras_serializable(package=SERIALIZATION_PACKAGE)
+def vgg16_preprocess_input(inputs):
+    """Apply VGG16 preprocessing inside a serializable Lambda wrapper."""
+    return tf.keras.applications.vgg16.preprocess_input(inputs)
+
+
+@tf.keras.utils.register_keras_serializable(package=SERIALIZATION_PACKAGE)
+def mobilenetv3_preprocess_input(inputs):
+    """Apply MobileNetV3 preprocessing inside a serializable Lambda wrapper."""
+    return tf.keras.applications.mobilenet_v3.preprocess_input(inputs)
+
+
+@tf.keras.utils.register_keras_serializable(package=SERIALIZATION_PACKAGE)
+def densenet121_preprocess_input(inputs):
+    """Apply DenseNet121 preprocessing inside a serializable Lambda wrapper."""
+    return tf.keras.applications.densenet.preprocess_input(inputs)
+
 
 OPTIMIZERS = {
     "adam":     tf.keras.optimizers.Adam,
@@ -24,26 +41,34 @@ OPTIMIZERS = {
     "rmsprop":  tf.keras.optimizers.RMSprop,
 }
 
+BACKBONE_PREPROCESSORS = {
+    "resnet50": resnet50_preprocess_input,
+    "efficientnetb3": efficientnetb3_preprocess_input,
+    "vgg16": vgg16_preprocess_input,
+    "mobilenetv3": mobilenetv3_preprocess_input,
+    "densenet121": densenet121_preprocess_input,
+}
+
 BACKBONES = {
     "resnet50": (
         tf.keras.applications.ResNet50,
-        tf.keras.applications.resnet.preprocess_input,
+        BACKBONE_PREPROCESSORS["resnet50"],
     ),
     "efficientnetb3": (
         tf.keras.applications.EfficientNetB3,
-        tf.keras.applications.efficientnet.preprocess_input,
+        BACKBONE_PREPROCESSORS["efficientnetb3"],
     ),
     "vgg16": (
         tf.keras.applications.VGG16,
-        tf.keras.applications.vgg16.preprocess_input,
+        BACKBONE_PREPROCESSORS["vgg16"],
     ),
     "mobilenetv3": (
         tf.keras.applications.MobileNetV3Large,
-        tf.keras.applications.mobilenet_v3.preprocess_input,
+        BACKBONE_PREPROCESSORS["mobilenetv3"],
     ),
     "densenet121": (
         tf.keras.applications.DenseNet121,
-        tf.keras.applications.densenet.preprocess_input,
+        BACKBONE_PREPROCESSORS["densenet121"],
     ),
 }
 
@@ -77,6 +102,27 @@ class SparseCategoricalF1Score(tf.keras.metrics.F1Score):
     @classmethod
     def from_config(cls, config):
         return cls(**config)
+
+
+def get_model_custom_objects(backbone_name=None):
+    """Return the custom_objects mapping needed to deserialize saved models."""
+    custom_objects = {"SparseCategoricalF1Score": SparseCategoricalF1Score}
+    if backbone_name is None:
+        return custom_objects
+
+    backbone_key = backbone_name.lower()
+    if backbone_key in {"baseline", "perceptron"}:
+        return custom_objects
+    if backbone_key not in BACKBONE_PREPROCESSORS:
+        raise ValueError(
+            f"Unsupported backbone for model loading: '{backbone_name}'. "
+            f"Choose from: baseline, {', '.join(BACKBONE_PREPROCESSORS)}."
+        )
+
+    preprocess_fn = BACKBONE_PREPROCESSORS[backbone_key]
+    custom_objects[preprocess_fn.__name__] = preprocess_fn
+    custom_objects["preprocess_input"] = preprocess_fn
+    return custom_objects
 
 
 def _resolve_metrics(metric_names, num_classes):

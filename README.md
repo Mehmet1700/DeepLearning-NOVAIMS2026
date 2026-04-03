@@ -6,9 +6,11 @@ Dataset preparation, exploration, and baseline CNN experimentation for WikiArt a
 
 - `src/train.py` is the main ML entrypoint; its direct runtime dependencies now live in the `ml` dependency group.
 - Transfer-learning fine-tuning now keeps the pretrained application backbone as a named nested Keras submodel, so Phase 2 layer unfreezing works for the transfer backbones.
+- `src/evaluate.py` now resolves its default checkpoint from the selected config file's `checkpoint_dir`, so backbone-specific runs no longer depend on a stale flat checkpoint path.
+- Transfer checkpoints now load the correct backbone preprocessing function during evaluation, and newly saved checkpoints use project-registered preprocessing wrappers instead of a bare `preprocess_input` Lambda.
 - `src/evaluate.py` and `src/compare_runs.py` build on the training stack and additionally need plotting dependencies from the `dev` group.
 - `src/preprocessing/split_dataset.py` builds deterministic train, validation, and test splits from `data/wikiart/`.
-- `tests/test_model.py` contains regression coverage for transfer-model backbone lookup and `fine_tune_unfrozen_layers` validation.
+- `tests/test_runtime.py` contains regression coverage for evaluation checkpoint resolution, transfer-checkpoint loading, and training callback configuration.
 - `src/utils.py` contains image-hashing helpers used in duplicate-analysis and EDA workflows; those dependencies live in the `preprocessing` group.
 - Notebooks and exploratory analysis live behind the `dev` group instead of the core runtime path.
 - `data/` is local-only and ignored by Git, so raw images and generated splits stay out of version control.
@@ -71,9 +73,13 @@ uv run --only-group ml python src/train.py --config configs/config_resnet50.yaml
 Evaluation and run-comparison commands need both `ml` and `dev`:
 
 ```bash
-uv run --group ml python src/evaluate.py --config configs/config_local.yaml --weights outputs/checkpoints/best_model.keras
+uv run --group ml python src/evaluate.py --config configs/config_resnet50.yaml
+uv run --group ml python src/evaluate.py --config configs/config_resnet50.yaml --weights outputs/checkpoints/resnet50/best_model.keras
 uv run --group ml python src/compare_runs.py --outputs_dir outputs
 ```
+
+When `--weights` is omitted, `src/evaluate.py` loads `best_model.keras` from the config file's `checkpoint_dir`.
+For transfer backbones, the evaluation config's `backbone` must match the checkpoint so the correct preprocessing function is registered at load time.
 
 Transfer-learning fine-tuning configs such as `configs/config_resnet50.yaml` support:
 
@@ -123,7 +129,7 @@ DeepLearning-NOVAIMS2026/
 │   ├── train.py
 │   └── utils.py
 ├── tests/
-│   └── test_model.py
+│   └── test_runtime.py
 ├── HPC_SETUP.md
 ├── INSTRUCTIONS.md
 ├── README.md
@@ -148,7 +154,7 @@ DeepLearning-NOVAIMS2026/
 - `src/preprocessing/split_dataset.py`: dataset splitter rooted at `data/wikiart` and writing splits under `data/`.
 - `src/train.py`: training entrypoint for the image classification models.
 - `src/utils.py`: image hashing helpers used for duplicate-image analysis workflows.
-- `tests/test_model.py`: regression tests covering transfer-learning backbone lookup and Phase 2 fine-tuning validation.
+- `tests/test_runtime.py`: regression tests for evaluation checkpoint resolution, transfer-checkpoint deserialization, and training callback monitor configuration.
 - `HPC_SETUP.md`: notes for running the project on the target HPC environment.
 - `INSTRUCTIONS.md`: project workflow notes and runbook-style guidance for the dataset and training pipeline.
 - `README.md`: project overview, setup steps, data layout, and workflow notes.
