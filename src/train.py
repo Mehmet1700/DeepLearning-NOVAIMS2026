@@ -1,11 +1,4 @@
-"""
-Training loop for artist classification.
-
-Supports two-phase training for transfer learning models:
-  Phase 1: backbone frozen, only head is trained
-  Phase 2: fine-tune with a lower learning rate and a configurable number of
-           unfrozen backbone tail layers
-"""
+"""Training entrypoint for artist classification models."""
 
 import argparse
 import os
@@ -33,11 +26,11 @@ def make_callbacks(checkpoint_dir, log_dir, patience):
             filepath=os.path.join(checkpoint_dir, "best_model.keras"),
             monitor="val_loss",
             save_best_only=True,
-            mode="max",
+            mode="min",
             verbose=1,
         ),
         tf.keras.callbacks.EarlyStopping(
-            monitor="val_loss", patience=patience, mode="max", restore_best_weights=True
+            monitor="val_loss", patience=patience, mode="min", restore_best_weights=True
         ),
         tf.keras.callbacks.ReduceLROnPlateau(
             monitor="val_loss", factor=0.5, patience=5, verbose=1

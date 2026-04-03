@@ -1,20 +1,18 @@
-"""
-Evaluation and metrics for artist classification.
-Logs results to MLflow without saving images to repository.
-"""
+"""Evaluation entrypoint for artist classification checkpoints."""
 
 import argparse
-import yaml
-import numpy as np
+import os
 import sys
 import tempfile
-import os
+from datetime import datetime
 from pathlib import Path
-from sklearn.metrics import f1_score, roc_auc_score, confusion_matrix, classification_report
-from sklearn.preprocessing import label_binarize
+
 import mlflow
 import mlflow.tensorflow
-from datetime import datetime
+import numpy as np
+import yaml
+from sklearn.metrics import f1_score, roc_auc_score, confusion_matrix, classification_report
+from sklearn.preprocessing import label_binarize
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -22,8 +20,34 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from src.dataset import load_split
-from src.model import SparseCategoricalF1Score
+from src import dataset, model
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def resolve_weights_path(config, weights_path=None):
+    """Resolve the checkpoint path from the CLI override or config checkpoint_dir."""
+    raw_path = weights_path
+    if raw_path is None:
+        checkpoint_dir = config.get("checkpoint_dir", "outputs/checkpoints")
+        raw_path = str(Path(checkpoint_dir) / "best_model.keras")
+
+    path = Path(raw_path).expanduser()
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return path.resolve()
+
+
+def validate_weights_path(weights_path):
+    """Fail fast with a config-aware error when the checkpoint file is missing."""
+    if weights_path.is_file():
+        return
+
+    raise FileNotFoundError(
+        "Model weights not found at "
+        f"'{weights_path}'. Pass --weights explicitly or set checkpoint_dir in the "
+        "config so evaluation can locate '<checkpoint_dir>/best_model.keras'."
+    )
 
 
 def generate_and_log_confusion_matrix(y_true, y_pred, class_names, artifact_path="test_artifacts"):
@@ -111,27 +135,27 @@ def generate_and_log_classification_report(y_true, y_pred, class_names, artifact
     print(f"  Logged classification report to MLflow")
 
 
-
-def evaluate(config_path: str, weights_path: str):
+def evaluate(config_path: str, weights_path: str | None = None):
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
     img_size   = tuple(cfg["img_size"])
     batch_size = cfg["batch_size"]
+    backbone = cfg.get("backbone", "baseline")
+    resolved_weights_path = resolve_weights_path(cfg, weights_path)
+    validate_weights_path(resolved_weights_path)
+    custom_objects = model.get_model_custom_objects(backbone)
 
-    test_ds, class_names = load_split(
+    test_ds, class_names = dataset.load_split(
         cfg["test_dir"], img_size, batch_size, augment=False
     )
 
-    model = tf.keras.models.load_model(
-        weights_path,
+    loaded_model = tf.keras.models.load_model(
+        resolved_weights_path,
         safe_mode=False,
         compile=False,
-        custom_objects={"SparseCategoricalF1Score": SparseCategoricalF1Score},
+        custom_objects=custom_objects,
     )
-    
-    # Get backbone name early for MLflow run naming
-    backbone = cfg.get("backbone", "baseline")
 
     # Initialize MLflow
     mlflow.set_experiment("Artist_Classification_Test")
@@ -142,7 +166,7 @@ def evaluate(config_path: str, weights_path: str):
         
         y_true, y_pred, y_pred_proba = [], [], []
         for images, labels in test_ds:
-            preds = model.predict(images, verbose=0)
+            preds = loaded_model.predict(images, verbose=0)
             y_true.extend(labels.numpy())
             y_pred.extend(np.argmax(preds, axis=1))
             y_pred_proba.extend(preds)
@@ -181,9 +205,12 @@ def evaluate(config_path: str, weights_path: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    default_config  = str(Path(__file__).resolve().parent.parent / "configs" / "config_local.yaml")
-    default_weights = str(Path(__file__).resolve().parent.parent / "outputs" / "checkpoints" / "best_model.keras")
+    default_config  = str(PROJECT_ROOT / "configs" / "config_local.yaml")
     parser.add_argument("--config",  default=default_config,  help="Path to YAML config file")
-    parser.add_argument("--weights", default=default_weights, help="Path to saved model (.keras / .h5)")
+    parser.add_argument(
+        "--weights",
+        default=None,
+        help="Path to saved model (.keras / .h5). Defaults to <checkpoint_dir>/best_model.keras from the config.",
+    )
     args = parser.parse_args()
     evaluate(args.config, args.weights)
