@@ -13,16 +13,19 @@ num_classes: 23
 img_size:    [224, 224]   # MobileNetV3 native input size
 
 # --- Training ---
-batch_size: 32
+batch_size: 64
 epochs:     30
-patience:   5
+patience:   7
 
 # Phase 1: train head only (backbone frozen)
 learning_rate: 0.001
 # Phase 2: fine-tune backbone at lower lr
-fine_tune_epochs:          10
+fine_tune_epochs:          15
 fine_tune_lr:              0.00001
-fine_tune_unfrozen_layers: all     # "all" or last N layers
+fine_tune_unfrozen_layers: 30      # last N layers — avoids catastrophic forgetting
+
+# --- Class weights ---
+compute_class_weight: true   # balance loss for imbalanced artist counts
 
 # --- Augmentation --- (disabled for baseline comparison)
 augment: false

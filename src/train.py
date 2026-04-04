@@ -1,8 +1,10 @@
 """Training entrypoint for artist classification models."""
 
 import argparse
+import random
 import shutil
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import mlflow
@@ -11,6 +13,7 @@ import numpy as np
 import yaml
 from sklearn.metrics import roc_auc_score
 from sklearn.preprocessing import label_binarize
+from sklearn.utils.class_weight import compute_class_weight as skl_compute_class_weight
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -70,6 +73,11 @@ def safe_log_params(cfg):
 
 
 def train(config_path: str, run_id: str | None = None):
+    # Global seeds for reproducibility
+    random.seed(42)
+    np.random.seed(42)
+    tf.random.set_seed(42)
+
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
@@ -93,13 +101,24 @@ def train(config_path: str, run_id: str | None = None):
         cfg["val_dir"], img_size, batch_size, augment=False, config=cfg
     )
 
+    # Compute class weights to handle imbalanced artist counts (optional)
+    class_weight_dict = None
+    if cfg.get("compute_class_weight", False):
+        print("Computing class weights from training labels...")
+        all_labels = np.concatenate([y.numpy() for _, y in train_ds])
+        classes = np.unique(all_labels)
+        weights = skl_compute_class_weight("balanced", classes=classes, y=all_labels)
+        class_weight_dict = dict(zip(classes.astype(int), weights))
+        print(f"  Class weights — min: {min(weights):.3f}, max: {max(weights):.3f}")
+
     checkpoint_dir = cfg.get("checkpoint_dir", "outputs/checkpoints")
 
     mlflow.set_tracking_uri("sqlite:///mlflow.db")
     mlflow.set_experiment("Artist_Classification")
     mlflow.tensorflow.autolog(log_models=False)
 
-    with mlflow.start_run(run_name=backbone) as mlflow_run:
+    run_label = run_id or datetime.now().strftime("%d%m%Y_%H%M%S")
+    with mlflow.start_run(run_name=f"{backbone}_{run_label}") as mlflow_run:
         run_context = checkpoints.resolve_output_run_context(
             run_id=run_id,
             active_run_id=mlflow_run.info.run_id,
@@ -136,6 +155,7 @@ def train(config_path: str, run_id: str | None = None):
             validation_data=val_ds,
             epochs=epochs,
             callbacks=make_callbacks(checkpoint_layout.phase1_best_model_path, patience),
+            class_weight=class_weight_dict,
         )
 
         best1 = int(np.argmax(history1.history["val_f1_score"]))
@@ -177,6 +197,7 @@ def train(config_path: str, run_id: str | None = None):
                 validation_data=val_ds,
                 epochs=fine_tune_epochs,
                 callbacks=make_callbacks(checkpoint_layout.phase2_best_model_path, patience),
+                class_weight=class_weight_dict,
             )
 
             best2 = int(np.argmax(history2.history["val_f1_score"]))

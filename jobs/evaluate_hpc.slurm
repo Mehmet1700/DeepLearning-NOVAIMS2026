@@ -30,18 +30,21 @@ fi
 echo "Start time : $(date)"
 echo "================================================"
 
-# --- Debug info ---
-echo "Python     : $(which python3) — $(python3 --version)"
-nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader
-echo "test       : $(find data/test -name '*.jpg' 2>/dev/null | wc -l) images"
-echo "------------------------------------------------"
-
 module load CUDA/12.1.1
 module load cuDNN/8.9.2.26-CUDA-12.1.1
 module load Python/3.11.3-GCCcore-12.3.0
 source .venv/bin/activate
 
 export XLA_FLAGS="--xla_gpu_cuda_data_dir=$EBROOTCUDA"
+export TF_CPP_MIN_LOG_LEVEL=2
+export TF_GPU_THREAD_MODE=gpu_private
+export TF_GPU_THREAD_COUNT=1
+
+# --- Debug info ---
+echo "Python     : $(which python3) — $(python3 --version)"
+nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader
+echo "test       : $(find data/test -name '*.jpg' 2>/dev/null | wc -l) images"
+echo "------------------------------------------------"
 
 ARGS=(--config "$CONFIG")
 

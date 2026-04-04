@@ -1,16 +1,17 @@
 #!/bin/bash
 #SBATCH --job-name=wikiart-train
 #SBATCH --gpus=1
-#SBATCH --mem=32G
+#SBATCH --mem=40G
 #SBATCH --cpus-per-task=4
-#SBATCH --time=04:00:00
+#SBATCH --time=08:00:00
 #SBATCH --output=outputs/logs/slurm_%j.out
 #SBATCH --error=outputs/logs/slurm_%j.err
 
 # Usage:
-#   sbatch --account=f202500002hpcvlabistulg --partition=dev-a100-40 jobs/train_hpc.slurm configs/config_resnet50.yaml
-#   sbatch --account=f202500002hpcvlabistulg --partition=dev-a100-40 jobs/train_hpc.slurm configs/config_efficientnetb3.yaml
-#   sbatch --account=f202500002hpcvlabistulg --partition=dev-a100-40 jobs/train_hpc.slurm configs/config_vgg16.yaml
+#   Production training (up to 2 days, recommended):
+#     sbatch --account=f202500002hpcvlabistulg --partition=normal-a100-40 jobs/train_hpc.slurm configs/config_mobilenetv3.yaml
+#   Quick tests (4hr cap):
+#     sbatch --account=f202500002hpcvlabistulg --partition=dev-a100-40 jobs/train_hpc.slurm configs/config_mobilenetv3.yaml
 
 CONFIG=${1:-configs/config_efficientnetb3.yaml}
 
