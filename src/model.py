@@ -244,6 +244,10 @@ def build_baseline(num_classes, img_size, config):
 def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, config):
     """Transfer learning model with pretrained backbone + custom head."""
     backbone_cls, preprocess_fn = BACKBONES[backbone_name]
+    cfg = config or {}
+    hidden_layer_sizes = cfg.get("hidden_layer_sizes", [])
+    dropout_rate = cfg.get("dropout_rate", 0.4)
+    use_batch_norm = cfg.get("batch_norm", True)
 
     inputs = tf.keras.Input(shape=(*img_size, 3))
 
@@ -267,8 +271,16 @@ def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, conf
     # Keep the application model nested so fine-tuning can target it explicitly.
     x = base(x)
     x = tf.keras.layers.GlobalAveragePooling2D()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dropout(0.4)(x)
+    if use_batch_norm:
+        x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Dropout(dropout_rate)(x)
+
+    for units in hidden_layer_sizes:
+        x = tf.keras.layers.Dense(units, activation="relu")(x)
+        if use_batch_norm:
+            x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.Dropout(dropout_rate)(x)
+
     outputs = tf.keras.layers.Dense(num_classes, activation="softmax", dtype="float32")(x)
 
     model = tf.keras.Model(inputs, outputs)

@@ -14,7 +14,7 @@ img_size:    [224, 224]   # MobileNetV3 native input size
 
 # --- Training ---
 batch_size: 64
-epochs:     30
+epochs:     100
 patience:   7
 
 # Phase 1: train head only (backbone frozen)
@@ -22,7 +22,7 @@ learning_rate: 0.001
 # Phase 2: fine-tune backbone at lower lr
 fine_tune_epochs:          15
 fine_tune_lr:              0.00001
-fine_tune_unfrozen_layers: 30      # last N layers — avoids catastrophic forgetting
+fine_tune_unfrozen_layers: 10      # last N layers — avoids catastrophic forgetting
 
 # --- Class weights ---
 compute_class_weight: true   # balance loss for imbalanced artist counts
@@ -33,11 +33,16 @@ augment: false
 # zoom_range:      0.1
 # contrast_range:  0.1
 
+# --- Head architecture ---
+hidden_layer_sizes: [256]   # bottleneck between 960-dim backbone output and 23 classes
+dropout_rate: 0.4
+
 # --- Compile ---
 optimizer: adam
 loss:      sparse_categorical_crossentropy
 metrics:
   - f1_score
+  - accuracy
 
 # --- Output paths ---
 checkpoint_dir: outputs/checkpoints/mobilenetv3

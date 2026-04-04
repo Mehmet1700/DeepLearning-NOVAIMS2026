@@ -19,7 +19,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import tensorflow as tf
 
-tf.keras.mixed_precision.set_global_policy("mixed_bfloat16")
 
 from src import checkpoints, dataset, metric_utils, model
 
@@ -37,7 +36,7 @@ def make_callbacks(best_model_path, patience):
             monitor="val_f1_score", patience=patience, mode="max", restore_best_weights=True
         ),
         tf.keras.callbacks.ReduceLROnPlateau(
-            monitor="val_loss", factor=0.5, patience=3, verbose=1
+            monitor="val_loss", factor=0.5, patience=5, verbose=1
         ),
     ]
 
