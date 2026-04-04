@@ -56,7 +56,8 @@ def load_split(split_dir, img_size, batch_size, augment=False, config=None):
     # Disabled for large resolutions (>300px) to avoid OOM — decoded float32
     # tensors are ~46GB at 512x512 for the full training set.
     if img_size[0] <= 300:
-        ds = ds.cache()
+        cache_path = f"/tmp/{split_dir.replace('/', '_')}_cache"
+        ds = ds.cache(cache_path)
 
     # Apply augmentation on training set only
     if augment:

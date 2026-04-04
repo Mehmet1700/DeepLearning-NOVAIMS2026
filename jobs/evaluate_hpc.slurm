@@ -4,8 +4,8 @@
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=4
 #SBATCH --time=00:30:00
-#SBATCH --output=/projects/F202500002HPCVLABISTUL/Mehmet1700/DeepLearningProject-NOVAIMS2026/outputs/logs/slurm_eval_%j.out
-#SBATCH --error=/projects/F202500002HPCVLABISTUL/Mehmet1700/DeepLearningProject-NOVAIMS2026/outputs/logs/slurm_eval_%j.err
+#SBATCH --output=outputs/logs/slurm_eval_%j.out
+#SBATCH --error=outputs/logs/slurm_eval_%j.err
 
 # Usage:
 #   sbatch --account=f202500002hpcvlabistulg --partition=dev-a100-40 jobs/evaluate_hpc.slurm configs/config_mobilenetv3.yaml outputs/checkpoints/mobilenetv3/best_model.keras
@@ -14,7 +14,7 @@
 CONFIG=${1:-configs/config_efficientnetb3.yaml}
 WEIGHTS=${2:-outputs/checkpoints/efficientnetb3/best_model.keras}
 
-cd /projects/F202500002HPCVLABISTUL/Mehmet1700/DeepLearningProject-NOVAIMS2026
+cd "$SLURM_SUBMIT_DIR"
 
 mkdir -p outputs/logs
 
