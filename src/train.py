@@ -1,7 +1,7 @@
 """Training entrypoint for artist classification models."""
 
 import argparse
-import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -18,14 +18,13 @@ import tensorflow as tf
 
 tf.keras.mixed_precision.set_global_policy("mixed_bfloat16")
 
-from src.dataset import load_split
-from src.model import _compile, build_model, configure_fine_tuning
+from src import checkpoints, dataset, model
 
 
-def make_callbacks(checkpoint_dir, patience):
+def make_callbacks(best_model_path, patience):
     return [
         tf.keras.callbacks.ModelCheckpoint(
-            filepath=os.path.join(checkpoint_dir, "best_model.keras"),
+            filepath=str(best_model_path),
             monitor="val_f1_score",
             save_best_only=True,
             mode="max",
@@ -68,7 +67,7 @@ def safe_log_params(cfg):
     mlflow.log_params(safe)
 
 
-def train(config_path: str):
+def train(config_path: str, run_id: str | None = None):
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
@@ -85,63 +84,101 @@ def train(config_path: str):
     fine_tune_unfrozen_layers = "all" if raw_unfreeze in (-1, "all", None) else int(raw_unfreeze)
 
     augment     = cfg.get("augment", False)
-    train_ds, _ = load_split(cfg["train_dir"], img_size, batch_size, augment=augment, config=cfg)
-    val_ds,   _ = load_split(cfg["val_dir"],   img_size, batch_size, augment=False,   config=cfg)
+    train_ds, _ = dataset.load_split(
+        cfg["train_dir"], img_size, batch_size, augment=augment, config=cfg
+    )
+    val_ds, _ = dataset.load_split(
+        cfg["val_dir"], img_size, batch_size, augment=False, config=cfg
+    )
 
     checkpoint_dir = cfg.get("checkpoint_dir", "outputs/checkpoints")
-    os.makedirs(checkpoint_dir, exist_ok=True)
 
     mlflow.set_tracking_uri("sqlite:///mlflow.db")
     mlflow.set_experiment("Artist_Classification")
     mlflow.tensorflow.autolog(log_models=False)
 
-    with mlflow.start_run(run_name=backbone):
+    with mlflow.start_run(run_name=backbone) as mlflow_run:
+        run_context = checkpoints.resolve_output_run_context(
+            run_id=run_id,
+            active_run_id=mlflow_run.info.run_id,
+        )
+        checkpoint_layout = checkpoints.build_run_checkpoint_layout(
+            checkpoint_dir,
+            run_context.output_run_id,
+        )
+        checkpoints.ensure_run_directories(checkpoint_layout, "phase1")
+
         safe_log_params(cfg)
+        mlflow.log_param("logical_run_id", run_context.logical_run_id)
+        mlflow.log_param("output_run_id", run_context.output_run_id)
+        if run_context.slurm_job_id is not None:
+            mlflow.log_param("slurm_job_id", run_context.slurm_job_id)
+        mlflow.log_param("output_checkpoint_run_dir", str(checkpoint_layout.run_dir))
+
+        print(f"Run ID          : {run_context.logical_run_id}")
+        print(f"Output Run ID   : {run_context.output_run_id}")
+        if run_context.slurm_job_id is not None:
+            print(f"SLURM Job ID    : {run_context.slurm_job_id}")
+        print(f"Checkpoint Path : {checkpoint_layout.run_dir}")
 
         # ── Phase 1: train head only, backbone frozen ─────────────────────────
         print(f"\n{'='*60}")
         print(f"Phase 1 — Training head  |  backbone: {backbone}  |  frozen: True")
         print(f"{'='*60}\n")
 
-        model = build_model(backbone, num_classes, img_size, freeze_base=True, config=cfg)
-        history1 = model.fit(
+        trained_model = model.build_model(
+            backbone, num_classes, img_size, freeze_base=True, config=cfg
+        )
+        history1 = trained_model.fit(
             train_ds,
             validation_data=val_ds,
             epochs=epochs,
-            callbacks=make_callbacks(checkpoint_dir, patience),
+            callbacks=make_callbacks(checkpoint_layout.phase1_best_model_path, patience),
         )
 
         best1 = int(np.argmax(history1.history["val_f1_score"]))
+        phase_scores = [("phase1", float(history1.history["val_f1_score"][best1]))]
         mlflow.log_metrics(
             {f"phase1_best_{k}": v[best1] for k, v in history1.history.items()},
             step=0,
         )
         mlflow.log_param("phase1_best_epoch", best1 + 1)
         print(f"Phase 1 best epoch: {best1 + 1}")
-        compute_and_log_auc(model, val_ds, num_classes, "phase1", 0)
+        compute_and_log_auc(trained_model, val_ds, num_classes, "phase1", 0)
 
         # ── Phase 2: unfreeze backbone, fine-tune at low LR ───────────────────
         fine_tune_epochs = cfg.get("fine_tune_epochs", 0)
         if fine_tune_epochs > 0 and backbone != "baseline":
-            total_layers = configure_fine_tuning(model, backbone, fine_tune_unfrozen_layers)
-            unfrozen_label = str(total_layers) if fine_tune_unfrozen_layers == "all" else str(fine_tune_unfrozen_layers)
+            checkpoints.ensure_run_directories(checkpoint_layout, "phase2")
+            total_layers = model.configure_fine_tuning(
+                trained_model, backbone, fine_tune_unfrozen_layers
+            )
+            unfrozen_label = (
+                str(total_layers)
+                if fine_tune_unfrozen_layers == "all"
+                else str(fine_tune_unfrozen_layers)
+            )
 
             print(f"\n{'='*60}")
-            print(f"Phase 2 — Fine-tuning    |  backbone: {backbone}  |  unfrozen: {unfrozen_label}/{total_layers}")
+            print(
+                "Phase 2 — Fine-tuning    |  backbone: "
+                f"{backbone}  |  unfrozen: {unfrozen_label}/{total_layers}"
+            )
             print(f"{'='*60}\n")
 
             # Recompile at a much lower learning rate
             fine_tune_lr = cfg.get("fine_tune_lr", 1e-5)
-            _compile(model, cfg, num_classes, learning_rate=fine_tune_lr)
+            model._compile(trained_model, cfg, num_classes, learning_rate=fine_tune_lr)
 
-            history2 = model.fit(
+            history2 = trained_model.fit(
                 train_ds,
                 validation_data=val_ds,
                 epochs=fine_tune_epochs,
-                callbacks=make_callbacks(checkpoint_dir, patience),
+                callbacks=make_callbacks(checkpoint_layout.phase2_best_model_path, patience),
             )
 
             best2 = int(np.argmax(history2.history["val_f1_score"]))
+            phase_scores.append(("phase2", float(history2.history["val_f1_score"][best2])))
             mlflow.log_metrics(
                 {f"phase2_best_{k}": v[best2] for k, v in history2.history.items()},
                 step=1,
@@ -149,15 +186,34 @@ def train(config_path: str):
             mlflow.log_param("phase2_best_epoch", best2 + 1)
             mlflow.log_param("fine_tune_lr", fine_tune_lr)
             mlflow.log_param("fine_tune_unfrozen_layers", unfrozen_label)
-            compute_and_log_auc(model, val_ds, num_classes, "phase2", 1)
+            compute_and_log_auc(trained_model, val_ds, num_classes, "phase2", 1)
+            trained_model.save(checkpoint_layout.phase2_final_model_path)
+        else:
+            trained_model.save(checkpoint_layout.phase1_final_model_path)
 
-        model.save(os.path.join(checkpoint_dir, "final_model.keras"))
-        print(f"\nTraining complete. Model saved to: {checkpoint_dir}")
+        best_phase_name, best_phase_score = checkpoints.select_best_phase(phase_scores)
+        best_source_path = checkpoint_layout.best_model_path(best_phase_name)
+        shutil.copy2(best_source_path, checkpoint_layout.run_best_model_path)
+
+        mlflow.log_param("best_checkpoint_phase", best_phase_name)
+        mlflow.log_metric("best_checkpoint_val_f1_score", best_phase_score)
+
+        print(
+            "\nOverall best checkpoint: "
+            f"{checkpoint_layout.run_best_model_path} "
+            f"({best_phase_name}, val_f1_score={best_phase_score:.4f})"
+        )
+        print(f"Training complete. Model saved to: {checkpoint_layout.run_dir}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     default_config = str(Path(__file__).resolve().parent.parent / "configs" / "config_local.yaml")
     parser.add_argument("--config", default=default_config, help="Path to YAML config file")
+    parser.add_argument(
+        "--run-id",
+        default=None,
+        help="Optional logical run ID. On HPC the checkpoint folder becomes <SLURM_JOB_ID>__<run_id>; locally it stays <run_id>.",
+    )
     args = parser.parse_args()
-    train(args.config)
+    train(args.config, args.run_id)

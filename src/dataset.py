@@ -1,14 +1,17 @@
-"""
-WikiArt dataset loader and augmentation pipeline.
+"""Dataset loading and cache management for WikiArt splits."""
 
-Expects data to be pre-split into folders by src/split_dataset.py:
-    data/
-      train/<artist_name>/<image>.jpg
-      validation/<artist_name>/<image>.jpg
-      test/<artist_name>/<image>.jpg
-"""
+import hashlib
+import json
+import re
+from pathlib import Path
 
 import tensorflow as tf
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+CACHE_ROOT = PROJECT_ROOT / "outputs" / "cache"
+CACHE_SEED = 42
+CACHE_VERSION = 1
 
 
 # For future flexibility, we can define augmentation parameters in the config file
@@ -20,6 +23,51 @@ def build_augmentation_pipeline(config):
         tf.keras.layers.RandomZoom(config.get("zoom_range", 0.1)),
         tf.keras.layers.RandomContrast(config.get("contrast_range", 0.1)),
     ])
+
+
+def _resolve_split_dir(split_dir):
+    """Return the absolute split directory path."""
+    return Path(split_dir).resolve()
+
+
+def _split_file_signature(split_dir):
+    """Return a deterministic fingerprint for the current split contents."""
+    file_records = []
+    for file_path in sorted(path for path in split_dir.rglob("*") if path.is_file()):
+        stat = file_path.stat()
+        file_records.append({
+            "path": file_path.relative_to(split_dir).as_posix(),
+            "size": stat.st_size,
+            "mtime_ns": stat.st_mtime_ns,
+        })
+
+    payload = json.dumps(file_records, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _split_cache_label(split_dir):
+    """Return a readable cache label derived from the split directory name."""
+    sanitized = re.sub(r"[^A-Za-z0-9_-]+", "_", split_dir.name).strip("_")
+    return sanitized or "split"
+
+
+def _build_cache_path(split_dir, img_size, batch_size, shuffle, seed=CACHE_SEED):
+    """Return the on-disk cache path for a split and loader configuration."""
+    resolved_split_dir = _resolve_split_dir(split_dir)
+    cache_payload = {
+        "cache_version": CACHE_VERSION,
+        "split_dir": str(resolved_split_dir),
+        "img_size": list(img_size),
+        "batch_size": batch_size,
+        "shuffle": bool(shuffle),
+        "seed": seed,
+        "fingerprint": _split_file_signature(resolved_split_dir),
+    }
+    cache_digest = hashlib.sha256(
+        json.dumps(cache_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()[:16]
+    label = _split_cache_label(resolved_split_dir)
+    return CACHE_ROOT / f"{label}_{img_size[0]}x{img_size[1]}_b{batch_size}_shuffle{int(bool(shuffle))}_{cache_digest}"
 
 
 def load_split(split_dir, img_size, batch_size, augment=False, config=None):
@@ -43,7 +91,7 @@ def load_split(split_dir, img_size, batch_size, augment=False, config=None):
         image_size=img_size,
         batch_size=batch_size,
         shuffle=augment,   # only shuffle for training
-        seed=42,
+        seed=CACHE_SEED,
     )
 
     class_names = ds.class_names
@@ -52,12 +100,14 @@ def load_split(split_dir, img_size, batch_size, augment=False, config=None):
     # normalization internally (Rescaling layer for baseline, preprocess_input
     # Lambda for transfer learning backbones).
 
-    # Cache after normalization so images are only read from disk once.
+    # Cache resized and batched tensors before augmentation so later epochs
+    # skip repeated disk reads and image decoding work.
     # Disabled for large resolutions (>300px) to avoid OOM — decoded float32
     # tensors are ~46GB at 512x512 for the full training set.
     if img_size[0] <= 300:
-        cache_path = f"/tmp/{split_dir.replace('/', '_')}_cache"
-        ds = ds.cache(cache_path)
+        cache_path = _build_cache_path(split_dir, img_size, batch_size, shuffle=augment)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        ds = ds.cache(str(cache_path))
 
     # Apply augmentation on training set only
     if augment:

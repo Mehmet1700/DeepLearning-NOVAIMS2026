@@ -1,6 +1,6 @@
 # Project Instructions — src/ Guide
 
-This document explains every file in the `src/` folder, how they connect to each other, and how to run the full pipeline from raw data to evaluation.
+This document explains the key pipeline files in `src/`, how they connect to each other, and how to run the project from raw data cleanup to evaluation.
 
 ---
 
@@ -10,12 +10,14 @@ This document explains every file in the `src/` folder, how they connect to each
 2. [Folder Structure](#2-folder-structure)
 3. [Step-by-Step Pipeline](#3-step-by-step-pipeline)
 4. [File Reference](#4-file-reference)
-   - [split_dataset.py](#41-split_datasetpy)
-   - [dataset.py](#42-datasetpy)
-   - [model.py](#43-modelpy)
-   - [train.py](#44-trainpy)
-   - [evaluate.py](#45-evaluatepy)
-   - [utils.py](#46-utilspy)
+   - [remove_duplicates.py](#41-remove_duplicatespy)
+   - [split_dataset.py](#42-split_datasetpy)
+   - [dataset.py](#43-datasetpy)
+   - [model.py](#44-modelpy)
+   - [checkpoints.py](#45-checkpointspy)
+   - [train.py](#46-trainpy)
+   - [evaluate.py](#47-evaluatepy)
+   - [utils.py](#48-utilspy)
 5. [Configuration File](#5-configuration-file)
 6. [Outputs](#6-outputs)
 7. [Common Errors](#7-common-errors)
@@ -26,11 +28,11 @@ This document explains every file in the `src/` folder, how they connect to each
 
 This project trains a Convolutional Neural Network (CNN) to classify paintings by artist using the WikiArt dataset. The model looks at a painting and predicts which of the 23 artists painted it.
 
-The pipeline has three main stages:
+The pipeline has four main stages:
 
 ```
-Raw images  →  Split into folders  →  Train model  →  Evaluate model
-(data/wikiart)   (split_dataset.py)    (train.py)     (evaluate.py)
+Raw images  →  Remove duplicates  →  Split into folders  →  Train / Evaluate
+(data/wikiart)   (remove_duplicates.py)  (split_dataset.py)   (train.py / evaluate.py)
 ```
 
 ---
@@ -48,17 +50,22 @@ DeepLearning-NOVAIMS2026/
 │   ├── validation/           ← created by split_dataset.py (15% of images)
 │   └── test/                 ← created by split_dataset.py (15% of images)
 ├── src/
-│   ├── split_dataset.py      ← Step 1: split raw images into train/val/test
+│   ├── checkpoints.py        ← checkpoint path helpers and run-id resolution
 │   ├── dataset.py            ← loads images from folders into TensorFlow datasets
 │   ├── model.py              ← defines the CNN architecture
 │   ├── train.py              ← Step 2: trains the model
 │   ├── evaluate.py           ← Step 3: evaluates the trained model
+│   ├── preprocessing/
+│   │   ├── remove_duplicates.py  ← removes known duplicate raw images
+│   │   └── split_dataset.py      ← splits raw images into train/val/test
 │   └── utils.py              ← helper functions for EDA notebooks
+├── main.py                   ← convenience entrypoint for duplicate cleanup + splitting
 ├── configs/
 │   └── config_local.yaml     ← all training settings live here
 └── outputs/
-    ├── checkpoints/          ← saved model weights after training
-    └── logs/                 ← TensorBoard logs
+    ├── checkpoints/          ← run-scoped model weights after training
+    ├── cache/                ← TensorFlow dataset caches for compatible runs
+    └── logs/                 ← SLURM job logs and reserved log directory
 ```
 
 ---
@@ -74,29 +81,21 @@ source .venv/bin/activate
 
 ---
 
-### Step 1 — Split the dataset
+### Step 1 — Prepare the dataset
 
-**Run once.** Copies images from `data/wikiart/` into `data/train/`, `data/validation/`, and `data/test/`.
+**Run once.** The standard entrypoint removes known duplicate raw images and then creates `data/train/`, `data/validation/`, and `data/test/`.
 
 ```bash
-python src/split_dataset.py
+python main.py
 ```
 
-Expected output:
-```
-Source: /path/to/data/wikiart
-Output: /path/to/data
-Ratios: train=0.70, validation=0.15, test=0.15
-Seed: 73
+If you only want to rebuild the split folders without running duplicate cleanup:
 
-Per-class counts:
-  Albrecht_Durer: train=..., validation=..., test=...
-  ...
-
-Totals: train=9326, validation=1992, test=1992
+```bash
+python src/preprocessing/split_dataset.py
 ```
 
-> **Important:** Only run this once. If `data/train/` already exists, the script will refuse to run to avoid overwriting your split. If you need to re-split, delete the `data/train/`, `data/validation/`, and `data/test/` folders first.
+> **Important:** The split script refuses to run if `data/train/`, `data/validation/`, or `data/test/` already exist. Remove those folders first if you genuinely want to rebuild the split.
 
 ---
 
@@ -108,17 +107,19 @@ python src/train.py
 
 By default this uses `configs/config_local.yaml`. To use a different config:
 ```bash
-python src/train.py --config configs/config_hpc.yaml
+python src/train.py --config configs/config_resnet50.yaml
 ```
 
 You will see progress per batch:
 ```
 Epoch 1/5
-292/292 ━━━━━━━━━━━━━━━━━━━━ 120s - accuracy: 0.12 - val_accuracy: 0.15
+292/292 ━━━━━━━━━━━━━━━━━━━━ 120s - f1_score: 0.12 - val_f1_score: 0.15
 ```
 
 - `292` = number of batches per epoch (total images ÷ batch size)
-- Training saves the best model automatically to `outputs/checkpoints/best_model.keras`
+- Training saves checkpoints under `<checkpoint_dir>/<run_id>/` locally
+- On HPC, training saves checkpoints under `<checkpoint_dir>/<SLURM_JOB_ID>__<run_id>/`
+- In `configs/config_local.yaml`, this resolves to `outputs/checkpoints/local/<run_id>/`
 
 ---
 
@@ -127,7 +128,17 @@ Epoch 1/5
 ```bash
 python src/evaluate.py \
   --config configs/config_local.yaml \
-  --weights outputs/checkpoints/best_model.keras
+  --run-id <run_id>
+```
+
+On HPC, `--run-id` should be the combined folder name, for example `123456__abcd1234`.
+
+If you already know the exact checkpoint path, you can override run-based lookup:
+
+```bash
+python src/evaluate.py \
+  --config configs/config_local.yaml \
+  --weights outputs/checkpoints/local/<run_id>/best_model.keras
 ```
 
 Output includes:
@@ -139,7 +150,21 @@ Output includes:
 
 ## 4. File Reference
 
-### 4.1 `split_dataset.py`
+### 4.1 `remove_duplicates.py`
+
+**Purpose:** Deletes known duplicate files from `data/wikiart/` before you build the train, validation, and test folders.
+
+**How it works:**
+1. Loads the fixed duplicate path list from `src/preprocessing/images_to_remove.json`
+2. Maps those JSON paths into the local `data/wikiart/` directory
+3. Deletes files that still exist
+4. Prints a short summary of removed, missing, and invalid entries
+
+This script is usually run through `main.py`, so you normally do not need to call it directly.
+
+---
+
+### 4.2 `split_dataset.py`
 
 **Purpose:** Copies images from `data/wikiart/` into physical train, validation, and test folders.
 
@@ -163,7 +188,7 @@ Output includes:
 
 ---
 
-### 4.2 `dataset.py`
+### 4.3 `dataset.py`
 
 **Purpose:** Loads images from the split folders into TensorFlow datasets that the model can train on. This file is not run directly — it is imported by `train.py` and `evaluate.py`.
 
@@ -189,9 +214,7 @@ Read images from disk
         ↓
 Resize to img_size (e.g. 128×128)
         ↓
-Normalize pixels from [0–255] to [0.0–1.0]
-        ↓
-Cache in memory  ← epoch 1 is slow, epoch 2+ are fast
+Build an on-disk cache in outputs/cache/ for img_size <= 300
         ↓
 Apply augmentation (training only, random each epoch)
         ↓
@@ -199,10 +222,11 @@ Prefetch next batch while GPU trains on current batch
 ```
 
 **Returns:** `(dataset, class_names)` — the dataset and a list of artist names in alphabetical order (e.g. `["Albrecht_Durer", "Boris_Kustodiev", ...]`).
+For larger image sizes, caching is disabled to avoid excessive memory and storage pressure.
 
 ---
 
-### 4.3 `model.py`
+### 4.4 `model.py`
 
 **Purpose:** Defines and compiles the CNN architecture. Imported by `train.py`.
 
@@ -234,11 +258,28 @@ Dense(23, softmax)  →  probability for each artist
 - `optimizer` — `adam`, `sgd`, or `rmsprop`
 - `learning_rate` — e.g. `0.001`
 - `loss` — `sparse_categorical_crossentropy`
-- `metrics` — e.g. `[accuracy]`
+- `metrics` — e.g. `[f1_score]`
 
 ---
 
-### 4.4 `train.py`
+### 4.5 `checkpoints.py`
+
+**Purpose:** Centralizes checkpoint naming, run-id resolution, and evaluation path lookup.
+
+**What it handles:**
+- builds the run-scoped checkpoint layout under:
+  - local: `<checkpoint_dir>/<run_id>/`
+  - HPC: `<checkpoint_dir>/<SLURM_JOB_ID>__<run_id>/`
+- resolves the logical child `run_id` from `--run-id` or the active MLflow run id
+- prefixes the checkpoint folder name with `SLURM_JOB_ID` on HPC
+- keeps Phase 1 and Phase 2 checkpoint paths separate
+- resolves evaluation checkpoints from `--weights`, `--run-id`, a single discovered run folder, or the legacy flat layout
+
+This file is the reason concurrent runs and different training phases no longer overwrite one another.
+
+---
+
+### 4.6 `train.py`
 
 **Purpose:** Runs the full training loop. This is the main script your team will run most often.
 
@@ -246,27 +287,27 @@ Dense(23, softmax)  →  probability for each artist
 1. Reads all settings from the config YAML
 2. Loads the training and validation datasets via `dataset.py`
 3. Builds the model via `model.py`
-4. Sets up 4 automatic callbacks:
+4. Sets up 3 automatic callbacks:
 
 | Callback | What it does |
 |---|---|
-| `ModelCheckpoint` | Saves `best_model.keras` whenever validation accuracy improves |
-| `TensorBoard` | Writes loss/accuracy curves to `outputs/logs/` for visualisation |
+| `ModelCheckpoint` | Saves `phase1/best_model.keras` or `phase2/best_model.keras` whenever validation F1 improves |
 | `EarlyStopping` | Stops training if validation loss does not improve for `patience` epochs |
 | `ReduceLROnPlateau` | Halves the learning rate if validation loss stalls for 3 epochs |
 
 5. Calls `model.fit()` to run the training loop
-6. Saves `final_model.keras` (the last epoch) alongside `best_model.keras` (the best epoch)
+6. Saves a run-root `best_model.keras` copied from the best overall phase, plus phase-specific checkpoint files
 
 **Run:**
 ```bash
 python src/train.py                              # uses config_local.yaml by default
 python src/train.py --config configs/other.yaml  # override config
+python src/train.py --config configs/other.yaml --run-id local-debug
 ```
 
 ---
 
-### 4.5 `evaluate.py`
+### 4.7 `evaluate.py`
 
 **Purpose:** Loads a saved model and runs it against the test set to measure performance.
 
@@ -279,14 +320,14 @@ python src/train.py --config configs/other.yaml  # override config
 ```bash
 python src/evaluate.py \
   --config configs/config_local.yaml \
-  --weights outputs/checkpoints/best_model.keras
+  --run-id <run_id>
 ```
 
-> Always use `best_model.keras` (not `final_model.keras`) for evaluation. The best model is saved at the epoch with the highest validation accuracy, which is not necessarily the last epoch.
+> Prefer the run-root `best_model.keras` for evaluation. It is copied from whichever phase achieved the highest validation F1, so a stronger Phase 1 model is preserved even after Phase 2 finishes.
 
 ---
 
-### 4.6 `utils.py`
+### 4.8 `utils.py`
 
 **Purpose:** Helper functions used in the EDA notebooks. Not part of the training pipeline.
 
@@ -308,6 +349,7 @@ val_dir:   data/validation
 test_dir:  data/test
 
 # --- Model ---
+backbone: baseline            # local config uses the baseline CNN
 num_classes: 23              # number of artists
 img_size:    [128, 128]      # images are resized to this before being fed to the model
 
@@ -315,22 +357,24 @@ img_size:    [128, 128]      # images are resized to this before being fed to th
 batch_size: 128              # number of images processed at once
 epochs:     5                # maximum training epochs (EarlyStopping may stop earlier)
 patience:   5                # epochs to wait before EarlyStopping triggers
+fine_tune_epochs: 0          # Phase 2 disabled in the local baseline config
+fine_tune_lr: 0.00001
+fine_tune_unfrozen_layers: all
 
 # --- Augmentation ---
-rotation_range:  0.1         # max rotation (fraction of 360°)
-zoom_range:      0.1         # max zoom
-contrast_range:  0.1         # max contrast adjustment
+augment: false
 
 # --- Compile ---
 optimizer:     adam          # adam | sgd | rmsprop
 learning_rate: 0.001
 loss:          sparse_categorical_crossentropy
 metrics:
-  - accuracy
+  - f1_score
 
 # --- Output paths ---
-checkpoint_dir: outputs/checkpoints
-log_dir:        outputs/logs
+# Base directory for run-scoped checkpoints (<checkpoint_dir>/<run_id>/...)
+checkpoint_dir: outputs/checkpoints/local
+log_dir:        outputs/logs/local
 ```
 
 ---
@@ -339,11 +383,20 @@ log_dir:        outputs/logs
 
 After training you will find:
 
-| File | Description |
+Here `output_run_id` means:
+- local: `run_id`
+- HPC: `SLURM_JOB_ID__run_id`
+
+| File or folder | Description |
 |---|---|
-| `outputs/checkpoints/best_model.keras` | Best model weights — use this for evaluation and deployment |
-| `outputs/checkpoints/final_model.keras` | Weights from the last epoch |
-| `outputs/logs/` | TensorBoard logs — visualise with `tensorboard --logdir outputs/logs` |
+| local: `<checkpoint_dir>/<run_id>/best_model.keras` | Best overall model weights across all executed phases |
+| HPC: `<checkpoint_dir>/<SLURM_JOB_ID>__<run_id>/best_model.keras` | Best overall model weights across all executed phases |
+| `<checkpoint_dir>/<output_run_id>/phase1/best_model.keras` | Best Phase 1 checkpoint |
+| `<checkpoint_dir>/<output_run_id>/phase2/best_model.keras` | Best Phase 2 checkpoint, when fine-tuning runs |
+| `<checkpoint_dir>/<output_run_id>/phase1/final_model.keras` | Final model when training stops after Phase 1 |
+| `<checkpoint_dir>/<output_run_id>/phase2/final_model.keras` | Final model when Phase 2 runs |
+| `outputs/cache/` | TensorFlow dataset cache files for compatible runs |
+| `outputs/logs/` | SLURM job logs and the configured project log directory |
 
 ---
 
@@ -357,17 +410,22 @@ python src/train.py
 ```
 
 **`ValueError: Output directory already contains split folders`**
-You already ran `split_dataset.py` before. The split already exists — you do not need to run it again. If you genuinely want to re-split, delete the folders first:
+You already ran the split step before. The split already exists, so the script refuses to overwrite it. If you genuinely want to re-split, delete the folders first:
 ```bash
 rm -rf data/train data/validation data/test
-python src/split_dataset.py
+python main.py
 ```
 
-**`train.py: error: the following arguments are required: --config`**
-You ran `evaluate.py` without the required arguments. See [Step 3](#step-3--evaluate-the-model) for the correct command.
+**`Multiple run directories found ... Pass --run-id or --weights explicitly.`**
+This happens when a config's `checkpoint_dir` contains more than one run folder and evaluation cannot guess which one you want. Pass either:
+```bash
+python src/evaluate.py --config configs/config_local.yaml --run-id <run_id>
+python src/evaluate.py --config configs/config_local.yaml --weights <path-to-checkpoint>
+```
+On HPC, the `--run-id` value is the combined folder name, e.g. `123456__abcd1234`.
 
 **`tensorflow-metal` crash on import**
 Version mismatch between TensorFlow and tensorflow-metal. Fix with:
 ```bash
-pip install tensorflow-metal --upgrade
+uv pip install tensorflow-metal --upgrade
 ```

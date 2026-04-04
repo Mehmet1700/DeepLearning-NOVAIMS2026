@@ -20,22 +20,19 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from src import dataset, model
+from src import checkpoints, dataset, model
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
-def resolve_weights_path(config, weights_path=None):
-    """Resolve the checkpoint path from the CLI override or config checkpoint_dir."""
-    raw_path = weights_path
-    if raw_path is None:
-        checkpoint_dir = config.get("checkpoint_dir", "outputs/checkpoints")
-        raw_path = str(Path(checkpoint_dir) / "best_model.keras")
-
-    path = Path(raw_path).expanduser()
-    if not path.is_absolute():
-        path = PROJECT_ROOT / path
-    return path.resolve()
+def resolve_weights_path(config, weights_path=None, run_id=None):
+    """Resolve the checkpoint path from the CLI override or run-scoped config directory."""
+    checkpoint_dir = config.get("checkpoint_dir", "outputs/checkpoints")
+    return checkpoints.resolve_evaluation_weights_path(
+        checkpoint_dir,
+        weights_path=weights_path,
+        run_id=run_id,
+    )
 
 
 def validate_weights_path(weights_path):
@@ -45,8 +42,8 @@ def validate_weights_path(weights_path):
 
     raise FileNotFoundError(
         "Model weights not found at "
-        f"'{weights_path}'. Pass --weights explicitly or set checkpoint_dir in the "
-        "config so evaluation can locate '<checkpoint_dir>/best_model.keras'."
+        f"'{weights_path}'. Pass --weights explicitly or provide --run-id so "
+        "evaluation can locate '<checkpoint_dir>/<run_id>/best_model.keras'."
     )
 
 
@@ -135,14 +132,21 @@ def generate_and_log_classification_report(y_true, y_pred, class_names, artifact
     print(f"  Logged classification report to MLflow")
 
 
-def evaluate(config_path: str, weights_path: str | None = None):
+def evaluate(
+    config_path: str,
+    weights_path: str | None = None,
+    run_id: str | None = None,
+):
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
     img_size   = tuple(cfg["img_size"])
     batch_size = cfg["batch_size"]
     backbone = cfg.get("backbone", "baseline")
-    resolved_weights_path = resolve_weights_path(cfg, weights_path)
+    try:
+        resolved_weights_path = resolve_weights_path(cfg, weights_path, run_id)
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
     validate_weights_path(resolved_weights_path)
     custom_objects = model.get_model_custom_objects(backbone)
 
@@ -213,7 +217,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--weights",
         default=None,
-        help="Path to saved model (.keras / .h5). Defaults to <checkpoint_dir>/best_model.keras from the config.",
+        help="Path to saved model (.keras / .h5). Overrides run-scoped checkpoint resolution.",
+    )
+    parser.add_argument(
+        "--run-id",
+        default=None,
+        help="Run folder name under <checkpoint_dir>. On HPC this is typically <SLURM_JOB_ID>__<run_id>.",
     )
     args = parser.parse_args()
-    evaluate(args.config, args.weights)
+    evaluate(args.config, args.weights, args.run_id)

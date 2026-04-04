@@ -167,7 +167,7 @@ compute_class_weight: false     # Auto-compute balanced class weights
 # ─────────────────────────────────────────────────────────────────────────────
 # OUTPUT PATHS
 # ─────────────────────────────────────────────────────────────────────────────
-# Directory to save best model checkpoints
+# Base directory for run-scoped checkpoints (<checkpoint_dir>/<run_id>/...)
 checkpoint_dir: outputs/checkpoints/custom
 
 # Directory to save TensorBoard logs

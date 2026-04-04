@@ -8,11 +8,11 @@
 #SBATCH --error=outputs/logs/slurm_eval_%j.err
 
 # Usage:
-#   sbatch --account=f202500002hpcvlabistulg --partition=dev-a100-40 jobs/evaluate_hpc.slurm configs/config_mobilenetv3.yaml outputs/checkpoints/mobilenetv3/best_model.keras
-#   sbatch --account=f202500002hpcvlabistulg --partition=dev-a100-40 jobs/evaluate_hpc.slurm configs/config_efficientnetb3.yaml outputs/checkpoints/efficientnetb3/best_model.keras
+#   sbatch --account=f202500002hpcvlabistulg --partition=dev-a100-40 jobs/evaluate_hpc.slurm configs/config_mobilenetv3.yaml 123456__abcd1234
+#   sbatch --account=f202500002hpcvlabistulg --partition=dev-a100-40 jobs/evaluate_hpc.slurm configs/config_efficientnetb3.yaml outputs/checkpoints/efficientnetb3/123456__abcd1234/best_model.keras
 
 CONFIG=${1:-configs/config_efficientnetb3.yaml}
-WEIGHTS=${2:-outputs/checkpoints/efficientnetb3/best_model.keras}
+SELECTOR=${2:-}
 
 cd "$SLURM_SUBMIT_DIR"
 
@@ -22,7 +22,11 @@ echo "================================================"
 echo "Job ID     : $SLURM_JOB_ID"
 echo "Node       : $SLURMD_NODENAME"
 echo "Config     : $CONFIG"
-echo "Weights    : $WEIGHTS"
+if [[ -n "$SELECTOR" ]]; then
+  echo "Selector   : $SELECTOR"
+else
+  echo "Selector   : <auto>"
+fi
 echo "Start time : $(date)"
 echo "================================================"
 
@@ -39,7 +43,17 @@ source .venv/bin/activate
 
 export XLA_FLAGS="--xla_gpu_cuda_data_dir=$EBROOTCUDA"
 
-python3 src/evaluate.py --config $CONFIG --weights $WEIGHTS
+ARGS=(--config "$CONFIG")
+
+if [[ -n "$SELECTOR" ]]; then
+  if [[ "$SELECTOR" == *.keras || "$SELECTOR" == *.h5 ]]; then
+    ARGS+=(--weights "$SELECTOR")
+  else
+    ARGS+=(--run-id "$SELECTOR")
+  fi
+fi
+
+python3 src/evaluate.py "${ARGS[@]}"
 EXIT_CODE=$?
 
 echo "================================================"
