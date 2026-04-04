@@ -235,7 +235,7 @@ def build_baseline(num_classes, img_size, config):
         # Classifier head
         tf.keras.layers.GlobalAveragePooling2D(),
         tf.keras.layers.Dropout(0.3),
-        tf.keras.layers.Dense(num_classes, activation="softmax"),
+        tf.keras.layers.Dense(num_classes, activation="softmax", dtype="float32"),
     ])
     _compile(model, config, num_classes)
     return model
@@ -269,7 +269,7 @@ def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, conf
     x = tf.keras.layers.GlobalAveragePooling2D()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Dropout(0.4)(x)
-    outputs = tf.keras.layers.Dense(num_classes, activation="softmax")(x)
+    outputs = tf.keras.layers.Dense(num_classes, activation="softmax", dtype="float32")(x)
 
     model = tf.keras.Model(inputs, outputs)
     _compile(model, config, num_classes)

@@ -20,7 +20,7 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from src import checkpoints, dataset, model
+from src import checkpoints, dataset, metric_utils, model
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -172,14 +172,16 @@ def evaluate(
         
         y_true, y_pred, y_pred_proba = [], [], []
         for images, labels in test_ds:
-            preds = loaded_model.predict(images, verbose=0)
-            y_true.extend(labels.numpy())
-            y_pred.extend(np.argmax(preds, axis=1))
-            y_pred_proba.extend(preds)
+            preds = metric_utils.prepare_probabilities_for_sklearn(
+                loaded_model.predict(images, verbose=0)
+            )
+            y_true.append(labels.numpy())
+            y_pred.append(np.argmax(preds, axis=1))
+            y_pred_proba.append(preds)
 
-        y_true = np.array(y_true)
-        y_pred = np.array(y_pred)
-        y_pred_proba = np.array(y_pred_proba)
+        y_true = np.concatenate(y_true)
+        y_pred = np.concatenate(y_pred)
+        y_pred_proba = np.concatenate(y_pred_proba)
 
         accuracy = np.mean(y_true == y_pred)
         

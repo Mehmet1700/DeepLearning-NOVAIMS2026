@@ -18,7 +18,7 @@ import tensorflow as tf
 
 tf.keras.mixed_precision.set_global_policy("mixed_bfloat16")
 
-from src import checkpoints, dataset, model
+from src import checkpoints, dataset, metric_utils, model
 
 
 def make_callbacks(best_model_path, patience):
@@ -43,12 +43,14 @@ def compute_and_log_auc(model, dataset, num_classes, phase_name, mlflow_step):
     """Compute AUC on the validation set and log to MLflow."""
     y_true, y_pred_proba = [], []
     for images, labels in dataset:
-        preds = model.predict(images, verbose=0)
-        y_true.extend(labels.numpy())
-        y_pred_proba.extend(preds)
+        preds = metric_utils.prepare_probabilities_for_sklearn(
+            model.predict(images, verbose=0)
+        )
+        y_true.append(labels.numpy())
+        y_pred_proba.append(preds)
 
-    y_true = np.array(y_true)
-    y_pred_proba = np.array(y_pred_proba)
+    y_true = np.concatenate(y_true)
+    y_pred_proba = np.concatenate(y_pred_proba)
     y_true_binarized = label_binarize(y_true, classes=range(num_classes))
 
     try:
