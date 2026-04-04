@@ -14,15 +14,15 @@ img_size:    [224, 224]   # ResNet50 native input size
 
 # --- Training ---
 batch_size: 32
-epochs:     1
+epochs:     30
 patience:   5
 
 # Phase 1: train head only (backbone frozen)
 learning_rate: 0.001
 # Phase 2: fine-tune backbone at lower lr
-fine_tune_epochs:          1
+fine_tune_epochs:          25
 fine_tune_lr:              0.00001
-fine_tune_unfrozen_layers: 30      # last N backbone layers to unfreeze; use "all" for full fine-tune
+fine_tune_unfrozen_layers: 60      # last N backbone layers to unfreeze; use "all" for full fine-tune
 
 # --- Augmentation --- (disabled for baseline comparison)
 augment: false

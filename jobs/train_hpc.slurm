@@ -4,8 +4,8 @@
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=4
 #SBATCH --time=04:00:00
-#SBATCH --output=/projects/F202500002HPCVLABISTUL/Mehmet1700/DeepLearningProject-NOVAIMS2026/outputs/logs/slurm_%j.out
-#SBATCH --error=/projects/F202500002HPCVLABISTUL/Mehmet1700/DeepLearningProject-NOVAIMS2026/outputs/logs/slurm_%j.err
+#SBATCH --output=outputs/logs/slurm_%j.out
+#SBATCH --error=outputs/logs/slurm_%j.err
 
 # Usage:
 #   sbatch --account=f202500002hpcvlabistulg --partition=dev-a100-40 jobs/train_hpc.slurm configs/config_resnet50.yaml
@@ -15,7 +15,7 @@
 CONFIG=${1:-configs/config_efficientnetb3.yaml}
 
 # Navigate to project directory
-cd /projects/F202500002HPCVLABISTUL/Mehmet1700/DeepLearningProject-NOVAIMS2026
+cd "$SLURM_SUBMIT_DIR"
 
 mkdir -p outputs/checkpoints outputs/logs
 
