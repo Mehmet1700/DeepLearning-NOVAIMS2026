@@ -269,7 +269,12 @@ def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, conf
     base.trainable = not freeze_base
 
     # Keep the application model nested so fine-tuning can target it explicitly.
-    x = base(x)
+    # training=False forces BatchNorm to use ImageNet running statistics instead
+    # of computing noisy batch statistics from small WikiArt batches (~3 images
+    # per class). Without this, the backbone features are meaningless even with
+    # trainable=False. Required for both Phase 1 (frozen) and Phase 2 (fine-tuning).
+    # See: https://www.tensorflow.org/guide/keras/transfer_learning
+    x = base(x, training=False)
     x = tf.keras.layers.GlobalAveragePooling2D()(x)
     if use_batch_norm:
         x = tf.keras.layers.BatchNormalization()(x)
