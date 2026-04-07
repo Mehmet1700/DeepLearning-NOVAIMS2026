@@ -222,21 +222,64 @@ def build_baseline(num_classes, img_size, config):
 
         # Block 1
         tf.keras.layers.Conv2D(32, (3, 3), activation="relu", padding="same"),
-        tf.keras.layers.MaxPooling2D(),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.MaxPooling2D((2,2)),
 
         # Block 2
         tf.keras.layers.Conv2D(64, (3, 3), activation="relu", padding="same"),
-        tf.keras.layers.MaxPooling2D(),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.MaxPooling2D((2,2)),
 
         # Block 3
         tf.keras.layers.Conv2D(128, (3, 3), activation="relu", padding="same"),
-        tf.keras.layers.MaxPooling2D(),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.MaxPooling2D((2,2)),
+
+        # Block 4
+        tf.keras.layers.Conv2D(256, (3, 3), activation="relu", padding="same"),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.MaxPooling2D((2,2)),
+
+        # Block 5
+        tf.keras.layers.Conv2D(518, (3, 3), activation="relu", padding="same"),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.MaxPooling2D((2,2)),
 
         # Classifier head
-        tf.keras.layers.GlobalAveragePooling2D(),
-        tf.keras.layers.Dropout(0.3),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dense(1024, activation="relu"),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dense(512, activation="relu"),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dense(256, activation="relu"),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dense(128, activation="relu"),
+        tf.keras.layers.BatchNormalization(),
         tf.keras.layers.Dense(num_classes, activation="softmax", dtype="float32"),
     ])
+    _compile(model, config, num_classes)
+    return model
+
+
+def build_perceptron(num_classes, img_size, config):
+    """Single-layer perceptron (fully-connected network) trained from scratch."""
+    model = tf.keras.Sequential([
+        tf.keras.Input(shape=(*img_size, 3)),
+
+        # Normalize [0, 255] → [0, 1]
+        tf.keras.layers.Rescaling(1.0 / 255.0),
+
+        # Flatten to 1D vector
+        tf.keras.layers.Flatten(),
+
+        # Single output layer
+        tf.keras.layers.Dense(num_classes, activation="softmax", dtype="float32"),
+    ])
+    
     _compile(model, config, num_classes)
     return model
 
@@ -311,7 +354,7 @@ def build_model(backbone: str, num_classes: int, img_size=(224, 224), freeze_bas
     Build and compile a model for artist classification.
 
     Args:
-        backbone:     "baseline", "resnet50", "efficientnetb3", "vgg16",
+        backbone:     "baseline", "perceptron", "resnet50", "efficientnetb3", "vgg16",
                       "mobilenetv3", or "densenet121".
         num_classes:  Number of output classes.
         img_size:     Spatial dimensions (height, width).
@@ -326,7 +369,10 @@ def build_model(backbone: str, num_classes: int, img_size=(224, 224), freeze_bas
     if backbone == "baseline":
         return build_baseline(num_classes, img_size, config)
 
+    if backbone == "perceptron":
+        return build_perceptron(num_classes, img_size, config)
+
     if backbone not in BACKBONES:
-        raise ValueError(f"Unsupported backbone: '{backbone}'. Choose from: baseline, {', '.join(BACKBONES)}")
+        raise ValueError(f"Unsupported backbone: '{backbone}'. Choose from: baseline, perceptron, {', '.join(BACKBONES)}")
 
     return build_transfer_model(backbone, num_classes, img_size, freeze_base, config)

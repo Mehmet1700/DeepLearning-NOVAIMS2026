@@ -20,15 +20,15 @@ patience:   6
 # Phase 1: train head only (backbone frozen)
 learning_rate: 0.001
 # Phase 2: fine-tune backbone at lower lr
-fine_tune_epochs:          15
+fine_tune_epochs:          20
 fine_tune_lr:              0.00001
-fine_tune_unfrozen_layers: 5     # "all" or last N layers
+fine_tune_unfrozen_layers: 10     # "all" or last N layers
 
 # --- Augmentation --- (disabled for baseline comparison)
 augment: True
-rotation_range:  0.1
-zoom_range:      0.1
-contrast_range:  0.1
+rotation_range:  0.05
+zoom_range:      0.05
+contrast_range:  0.05
 
 # --- Compile ---
 optimizer: adam
@@ -38,7 +38,7 @@ metrics:
 
 # --- CLASSIFICATION HEAD ARCHITECTURE ---
 pooling_type: flatten
-hidden_layer_sizes: [1024, 512, 512, 256]
+hidden_layer_sizes: [1024,512,512,256]
 dropout_rate: 0.2
 batch_norm: true
 
