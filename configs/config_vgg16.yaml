@@ -15,20 +15,20 @@ img_size:    [224, 224]   # VGG16 native input size
 # --- Training ---
 batch_size: 32
 epochs:     30
-patience:   5
+patience:   6
 
 # Phase 1: train head only (backbone frozen)
 learning_rate: 0.001
 # Phase 2: fine-tune backbone at lower lr
-fine_tune_epochs:          10
+fine_tune_epochs:          15
 fine_tune_lr:              0.00001
-fine_tune_unfrozen_layers: all     # "all" or last N layers
+fine_tune_unfrozen_layers: 5     # "all" or last N layers
 
 # --- Augmentation --- (disabled for baseline comparison)
-augment: false
-# rotation_range:  0.1
-# zoom_range:      0.1
-# contrast_range:  0.1
+augment: True
+rotation_range:  0.1
+zoom_range:      0.1
+contrast_range:  0.1
 
 # --- Compile ---
 optimizer: adam
@@ -36,6 +36,18 @@ loss:      sparse_categorical_crossentropy
 metrics:
   - f1_score
 
-# --- Output paths ---
+# --- CLASSIFICATION HEAD ARCHITECTURE ---
+pooling_type: flatten
+hidden_layer_sizes: [1024, 512, 512, 256]
+dropout_rate: 0.2
+batch_norm: true
+
+# --- CLASS WEIGHT BALANCING (Optional) ---
+compute_class_weight: True 
+
+#--- Output paths ---
 checkpoint_dir: outputs/checkpoints/vgg16
 log_dir:        outputs/logs/vgg16
+
+# sbatch --account=f202500002hpcvlabistulg        --partition=dev-a100-40        --time=00:60:00        jobs/train_hpc.slurm configs/config_vgg16.yaml
+# cat outputs/logs/slurm_1124221.out

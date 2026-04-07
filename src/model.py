@@ -248,6 +248,7 @@ def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, conf
     hidden_layer_sizes = cfg.get("hidden_layer_sizes", [])
     dropout_rate = cfg.get("dropout_rate", 0.4)
     use_batch_norm = cfg.get("batch_norm", True)
+    pooling_type = cfg.get("pooling_type", "global_average_pooling2d").lower()
 
     inputs = tf.keras.Input(shape=(*img_size, 3))
 
@@ -275,7 +276,19 @@ def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, conf
     # trainable=False. Required for both Phase 1 (frozen) and Phase 2 (fine-tuning).
     # See: https://www.tensorflow.org/guide/keras/transfer_learning
     x = base(x, training=False)
-    x = tf.keras.layers.GlobalAveragePooling2D()(x)
+    
+    # Apply pooling layer based on configuration
+    if pooling_type == "flatten":
+        x = tf.keras.layers.Flatten()(x)
+    elif pooling_type == "global_max_pooling2d":
+        x = tf.keras.layers.GlobalMaxPooling2D()(x)
+    elif pooling_type == "global_average_pooling2d":
+        x = tf.keras.layers.GlobalAveragePooling2D()(x)
+    else:
+        raise ValueError(
+            f"Unsupported pooling_type: '{pooling_type}'. "
+            f"Choose from: flatten, global_max_pooling2d, global_average_pooling2d"
+        )
     if use_batch_norm:
         x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Dropout(dropout_rate)(x)

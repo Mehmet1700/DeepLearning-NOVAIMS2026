@@ -23,7 +23,7 @@ import tensorflow as tf
 from src import checkpoints, dataset, metric_utils, model
 
 
-def make_callbacks(best_model_path, patience):
+def make_callbacks(best_model_path, patience=6):
     return [
         tf.keras.callbacks.ModelCheckpoint(
             filepath=str(best_model_path),
@@ -36,7 +36,7 @@ def make_callbacks(best_model_path, patience):
             monitor="val_f1_score", patience=patience, mode="max", restore_best_weights=True
         ),
         tf.keras.callbacks.ReduceLROnPlateau(
-            monitor="val_loss", factor=0.5, patience=5, verbose=1
+            monitor="val_f1_score", factor=0.1, patience=3, verbose=1,  min_lr=1e-6
         ),
     ]
 

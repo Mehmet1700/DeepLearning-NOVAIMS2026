@@ -111,8 +111,10 @@ metrics:
 
 # Pooling layer type after the backbone
 # Options:
-#   - global_average_pooling2d : Average pooling (recommended, preserves spatial info)
-#   - flatten                  : Flatten layer (uses more parameters)
+#   - global_average_pooling2d : Global average pooling (recommended, preserves spatial info uniformly)
+#   - global_max_pooling2d     : Global max pooling (emphasizes salient features)
+#   - flatten                  : Flatten layer (uses more parameters, no spatial reduction)
+# Default: global_average_pooling2d
 pooling_type: global_average_pooling2d
 
 # Hidden dense layers before output
