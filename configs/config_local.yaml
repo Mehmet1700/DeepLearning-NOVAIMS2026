@@ -8,7 +8,7 @@ val_dir:   data/validation
 test_dir:  data/test
 
 # --- Model ---
-backbone:    baseline
+backbone:    perceptron
 num_classes: 23
 img_size:    [224, 224]
 
@@ -18,7 +18,11 @@ epochs:     30
 patience:   6
 
 # --- Augmentation ---
-augment: false
+augment: True
+rotation_range:  0
+zoom_range:      0
+contrast_range:  0
+compute_class_weight: False 
 
 # --- Compile ---
 optimizer:     adam
