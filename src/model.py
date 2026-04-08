@@ -223,27 +223,17 @@ def build_baseline(num_classes, img_size, config):
         # Block 1
         tf.keras.layers.Conv2D(32, (3, 3), activation="relu", padding="same"),
         tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.MaxPooling2D((2,2)),
+        tf.keras.layers.MaxPooling2D((3, 3)),
 
         # Block 2
         tf.keras.layers.Conv2D(64, (3, 3), activation="relu", padding="same"),
         tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.MaxPooling2D((2,2)),
+        tf.keras.layers.MaxPooling2D((3, 3)),
 
         # Block 3
         tf.keras.layers.Conv2D(128, (3, 3), activation="relu", padding="same"),
         tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.MaxPooling2D((2,2)),
-
-        # Block 4
-        tf.keras.layers.Conv2D(256, (3, 3), activation="relu", padding="same"),
-        tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.MaxPooling2D((2,2)),
-
-        # Block 5
-        tf.keras.layers.Conv2D(518, (3, 3), activation="relu", padding="same"),
-        tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.MaxPooling2D((2,2)),
+        tf.keras.layers.MaxPooling2D((3, 3)),
 
         # Classifier head
         tf.keras.layers.Flatten(),
@@ -254,11 +244,6 @@ def build_baseline(num_classes, img_size, config):
         tf.keras.layers.Dense(512, activation="relu"),
         tf.keras.layers.BatchNormalization(),
         tf.keras.layers.Dropout(0.2),
-        tf.keras.layers.Dense(256, activation="relu"),
-        tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.Dropout(0.2),
-        tf.keras.layers.Dense(128, activation="relu"),
-        tf.keras.layers.BatchNormalization(),
         tf.keras.layers.Dense(num_classes, activation="softmax", dtype="float32"),
     ])
     _compile(model, config, num_classes)

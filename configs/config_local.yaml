@@ -8,7 +8,7 @@ val_dir:   data/validation
 test_dir:  data/test
 
 # --- Model ---
-backbone:    perceptron
+backbone:    baseline
 num_classes: 23
 img_size:    [224, 224]
 

@@ -26,9 +26,9 @@ fine_tune_unfrozen_layers: 10     # "all" or last N layers
 
 # --- Augmentation --- (disabled for baseline comparison)
 augment: True
-rotation_range:  0.05
-zoom_range:      0.05
-contrast_range:  0.05
+rotation_range:  0.1
+zoom_range:      0.1
+contrast_range:  0.1
 
 # --- Compile ---
 optimizer: adam
@@ -37,10 +37,10 @@ metrics:
   - f1_score
 
 # --- CLASSIFICATION HEAD ARCHITECTURE ---
-pooling_type: flatten
-hidden_layer_sizes: [1024,512,512,256]
-dropout_rate: 0.2
-batch_norm: true
+pooling_type: global_max_pooling2d
+hidden_layer_sizes: [1024, 512]
+dropout_rate: 0.1
+batch_norm: True
 
 # --- CLASS WEIGHT BALANCING (Optional) ---
 compute_class_weight: True 
