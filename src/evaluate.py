@@ -57,7 +57,7 @@ def generate_and_log_confusion_matrix(y_true, y_pred, class_names, artifact_path
         artifact_path: MLflow artifact path (default: "test_artifacts")
     """
     cm = confusion_matrix(y_true, y_pred)
-    cm_norm = cm.astype(float) / cm.sum(axis=1, keepdims=True)  # normalize per row
+    cm_norm = cm
 
     fig, ax = plt.subplots(figsize=(16, 14))
     sns.heatmap(
@@ -71,7 +71,7 @@ def generate_and_log_confusion_matrix(y_true, y_pred, class_names, artifact_path
     )
     ax.set_xlabel("Predicted", fontsize=12)
     ax.set_ylabel("True", fontsize=12)
-    ax.set_title("Confusion Matrix (normalized)", fontsize=14)
+    ax.set_title("Confusion Matrix", fontsize=14)
     plt.xticks(rotation=45, ha="right")
     plt.yticks(rotation=0)
     plt.tight_layout()
@@ -83,7 +83,7 @@ def generate_and_log_confusion_matrix(y_true, y_pred, class_names, artifact_path
     fig.savefig(tmp_path, dpi=150)
     plt.close(fig)
     mlflow.log_artifact(tmp_path, artifact_path=artifact_path)
-    os.remove(tmp_path)  # Clean up temp file
+    #os.remove(tmp_path)  # Clean up temp file
     print(f"  Logged confusion matrix to MLflow")
 
 
@@ -128,7 +128,7 @@ def generate_and_log_classification_report(y_true, y_pred, class_names, artifact
     fig.savefig(tmp_path, dpi=150)
     plt.close(fig)
     mlflow.log_artifact(tmp_path, artifact_path=artifact_path)
-    os.remove(tmp_path)  # Clean up temp file
+    #os.remove(tmp_path)  # Clean up temp file
     print(f"  Logged classification report to MLflow")
 
 
@@ -163,7 +163,7 @@ def evaluate(
 
     # Initialize MLflow
     mlflow.set_tracking_uri("sqlite:///mlflow.db")
-    mlflow.set_experiment("Artist_Classification_Test")
+    mlflow.set_experiment("Artist_Classification_Test_HPC")
 
     with mlflow.start_run(run_name=f"Eval_{backbone}_{datetime.now().strftime('%d-%m-%Y_%H-%M-%S')}"):
         # Log config — convert lists to strings so MLflow doesn't crash
@@ -202,7 +202,7 @@ def evaluate(
 
         # Generate and log visualizations to MLflow (temp files only, no repo artifacts)
         print("\nGenerating evaluation visualizations...")
-        generate_and_log_confusion_matrix(y_true, y_pred, class_names, artifact_path="test_artifacts")
+        generate_and_log_confusion_matrix(y_true, y_pred, class_names, artifact_path="test_artifacts")#"outputs/results/perceptron/test_artifacts"
         generate_and_log_classification_report(y_true, y_pred, class_names, artifact_path="test_artifacts")
 
         print(f"\nTop-1 Accuracy: {accuracy:.4f}")

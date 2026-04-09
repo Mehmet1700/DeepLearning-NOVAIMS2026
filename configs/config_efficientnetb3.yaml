@@ -26,13 +26,13 @@ fine_tune_unfrozen_layers: 100     # "all" or last N layers
 
 # --- Augmentation --- (disabled for baseline comparison)
 augment: True
-rotation_range:  0.2
-zoom_range:      0.2
-contrast_range:  0.2
+rotation_range:  0.25
+zoom_range:      0.25
+contrast_range:  0.5
 
 # --- CLASSIFICATION HEAD ARCHITECTURE ---
 pooling_type: flatten
-hidden_layer_sizes: []
+hidden_layer_sizes: [48]
 dropout_rate: 0.4
 batch_norm: True
 

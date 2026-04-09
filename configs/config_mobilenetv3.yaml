@@ -28,10 +28,10 @@ fine_tune_unfrozen_layers: 10      # last N layers — avoids catastrophic forge
 compute_class_weight: true   # balance loss for imbalanced artist counts
 
 # --- Augmentation --- (disabled for baseline comparison)
-augment: false
-# rotation_range:  0.1
-# zoom_range:      0.1
-# contrast_range:  0.1
+augment: true
+rotation_range:  0.01
+zoom_range:      0.01
+contrast_range:  0.01
 
 # --- Head architecture ---
 hidden_layer_sizes: [256]   # bottleneck between 960-dim backbone output and 23 classes
