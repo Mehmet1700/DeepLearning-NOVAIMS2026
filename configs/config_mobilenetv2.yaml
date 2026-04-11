@@ -1,6 +1,9 @@
 # ──────────────────────────────────────────────
-# MobileNetV3Large — Transfer Learning (Tier 3)
+# MobileNetV2 — Transfer Learning
 # ──────────────────────────────────────────────
+# MobileNetV2 uses inverted residuals + linear bottlenecks.
+# Produces 1280-dim feature vectors (vs 960 for MobileNetV3Large).
+# No include_preprocessing quirk — standard preprocessing pipeline.
 
 # --- Data ---
 train_dir: data/train
@@ -8,9 +11,9 @@ val_dir:   data/validation
 test_dir:  data/test
 
 # --- Model ---
-backbone:    mobilenetv3
+backbone:    mobilenetv2
 num_classes: 23
-img_size:    [224, 224]   # MobileNetV3 native input size
+img_size:    [224, 224]   # MobileNetV2 native input size
 
 # --- Training ---
 batch_size: 64
@@ -25,16 +28,16 @@ fine_tune_lr:              0.00001
 fine_tune_unfrozen_layers: 10      # last N layers — avoids catastrophic forgetting
 
 # --- Class weights ---
-compute_class_weight: false  # disabled for faster convergence testing
+compute_class_weight: false
 
-# --- Augmentation --- (disabled for baseline comparison)
+# --- Augmentation ---
 augment: true
 rotation_range:  0.01
 zoom_range:      0.01
 contrast_range:  0.01
 
 # --- Head architecture ---
-hidden_layer_sizes: [256]   # bottleneck between 960-dim backbone output and 23 classes
+hidden_layer_sizes: [256]
 dropout_rate: 0.2
 
 # --- Compile ---
@@ -45,5 +48,5 @@ metrics:
   - accuracy
 
 # --- Output paths ---
-checkpoint_dir: outputs/checkpoints/mobilenetv3
-log_dir:        outputs/logs/mobilenetv3
+checkpoint_dir: outputs/checkpoints/mobilenetv2
+log_dir:        outputs/logs/mobilenetv2

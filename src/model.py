@@ -24,6 +24,12 @@ def vgg16_preprocess_input(inputs):
 
 
 @tf.keras.utils.register_keras_serializable(package=SERIALIZATION_PACKAGE)
+def mobilenetv2_preprocess_input(inputs):
+    """Apply MobileNetV2 preprocessing inside a serializable Lambda wrapper."""
+    return tf.keras.applications.mobilenet_v2.preprocess_input(inputs)
+
+
+@tf.keras.utils.register_keras_serializable(package=SERIALIZATION_PACKAGE)
 def mobilenetv3_preprocess_input(inputs):
     """Apply MobileNetV3 preprocessing inside a serializable Lambda wrapper."""
     return tf.keras.applications.mobilenet_v3.preprocess_input(inputs)
@@ -45,6 +51,7 @@ BACKBONE_PREPROCESSORS = {
     "resnet50": resnet50_preprocess_input,
     "efficientnetb3": efficientnetb3_preprocess_input,
     "vgg16": vgg16_preprocess_input,
+    "mobilenetv2": mobilenetv2_preprocess_input,
     "mobilenetv3": mobilenetv3_preprocess_input,
     "densenet121": densenet121_preprocess_input,
 }
@@ -62,6 +69,10 @@ BACKBONES = {
         tf.keras.applications.VGG16,
         BACKBONE_PREPROCESSORS["vgg16"],
     ),
+    "mobilenetv2": (
+        tf.keras.applications.MobileNetV2,
+        BACKBONE_PREPROCESSORS["mobilenetv2"],
+    ),
     "mobilenetv3": (
         tf.keras.applications.MobileNetV3Large,
         BACKBONE_PREPROCESSORS["mobilenetv3"],
@@ -76,6 +87,7 @@ BACKBONE_LAYER_NAMES = {
     "resnet50": "resnet50",
     "efficientnetb3": "efficientnetb3",
     "vgg16": "vgg16",
+    "mobilenetv2": "mobilenetv2",
     "mobilenetv3": "MobilenetV3large",
     "densenet121": "densenet121",
 }
