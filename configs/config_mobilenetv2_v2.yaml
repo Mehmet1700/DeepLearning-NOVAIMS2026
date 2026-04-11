@@ -1,0 +1,50 @@
+# ──────────────────────────────────────────────
+# MobileNetV2 — v2 (standard)
+# dropout=0.4, lr=0.004, augmentation=0.1, unfrozen=30
+# ──────────────────────────────────────────────
+
+# --- Data ---
+train_dir: data/train
+val_dir:   data/validation
+test_dir:  data/test
+
+# --- Model ---
+backbone:    mobilenetv2
+num_classes: 23
+img_size:    [224, 224]
+
+# --- Training ---
+batch_size: 256
+epochs:     100
+patience:   10
+
+# Phase 1: train head only (backbone frozen)
+learning_rate: 0.004
+# Phase 2: fine-tune backbone at lower lr
+fine_tune_epochs:          40
+fine_tune_lr:              0.00001
+fine_tune_unfrozen_layers: 30
+
+# --- Class weights ---
+compute_class_weight: true
+
+# --- Augmentation ---
+augment: true
+rotation_range:  0.1
+zoom_range:      0.1
+contrast_range:  0.1
+
+# --- Head architecture ---
+hidden_layer_sizes: [256]
+dropout_rate: 0.4
+
+# --- Compile ---
+optimizer: adam
+loss:      sparse_categorical_crossentropy
+metrics:
+  - f1_score
+  - accuracy
+
+# --- Output paths ---
+checkpoint_dir: outputs/checkpoints/mobilenetv2_v2
+log_dir:        outputs/logs/mobilenetv2_v2
