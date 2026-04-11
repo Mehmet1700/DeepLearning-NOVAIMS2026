@@ -70,7 +70,7 @@ def _build_cache_path(split_dir, img_size, batch_size, shuffle, seed=CACHE_SEED)
     return CACHE_ROOT / f"{label}_{img_size[0]}x{img_size[1]}_b{batch_size}_shuffle{int(bool(shuffle))}_{cache_digest}"
 
 
-def load_split(split_dir, img_size, batch_size, augment=False, config=None):
+def load_split(split_dir, img_size, batch_size, augment=False, shuffle=None, config=None):
     """
     Build a tf.data.Dataset from a pre-split folder.
 
@@ -80,17 +80,23 @@ def load_split(split_dir, img_size, batch_size, augment=False, config=None):
         img_size:    Tuple (height, width).
         batch_size:  Batch size.
         augment:     Whether to apply augmentation (training only).
+        shuffle:     Whether to shuffle the dataset. Defaults to True for
+                     training (augment=True) and False for validation/test.
+                     Pass explicitly to override.
         config:      Optional dict with augmentation parameters.
 
     Returns:
         tf.data.Dataset yielding (image_tensor, label) batches,
         and the list of class names inferred from the folder structure.
     """
+    if shuffle is None:
+        shuffle = augment
+
     ds = tf.keras.utils.image_dataset_from_directory(
         split_dir,
         image_size=img_size,
         batch_size=batch_size,
-        shuffle=augment,   # only shuffle for training
+        shuffle=shuffle,
         seed=CACHE_SEED,
     )
 

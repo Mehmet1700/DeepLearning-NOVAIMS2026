@@ -36,7 +36,7 @@ def make_callbacks(best_model_path, patience=6):
             monitor="val_f1_score", patience=patience, mode="max", restore_best_weights=True
         ),
         tf.keras.callbacks.ReduceLROnPlateau(
-            monitor="val_f1_score", factor=0.1, patience=3, verbose=1,  min_lr=1e-6
+            monitor="val_loss", factor=0.5, patience=5, verbose=1, min_lr=1e-6
         ),
     ]
 
@@ -94,10 +94,10 @@ def train(config_path: str, run_id: str | None = None):
 
     augment     = cfg.get("augment", False)
     train_ds, _ = dataset.load_split(
-        cfg["train_dir"], img_size, batch_size, augment=augment, config=cfg
+        cfg["train_dir"], img_size, batch_size, augment=augment, shuffle=True, config=cfg
     )
     val_ds, _ = dataset.load_split(
-        cfg["val_dir"], img_size, batch_size, augment=False, config=cfg
+        cfg["val_dir"], img_size, batch_size, augment=False, shuffle=False, config=cfg
     )
 
     # Compute class weights to handle imbalanced artist counts (optional)
