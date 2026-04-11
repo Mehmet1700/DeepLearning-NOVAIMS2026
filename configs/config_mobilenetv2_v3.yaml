@@ -1,9 +1,7 @@
 # ──────────────────────────────────────────────
 # MobileNetV2 — v3
-# Unfreeze ALL backbone layers — maximum adaptation to WikiArt domain.
-# Very low fine_tune_lr (2e-05) to prevent catastrophic forgetting of
-# ImageNet features. Longer fine-tune phase to allow gradual adjustment.
-# batch=256, lr=0.004, fine_tune_lr=2e-05, unfrozen=all, dropout=0.5
+# All layers unfrozen, high fine_tune_lr, dropout=0.6
+# batch=256, lr=0.004, fine_tune_lr=1e-04, unfrozen=all, dropout=0.6
 # ──────────────────────────────────────────────
 
 # --- Data ---
@@ -23,10 +21,10 @@ patience:   15
 
 # Phase 1: train head only (backbone frozen)
 learning_rate: 0.004
-# Phase 2: unfreeze entire backbone at very low lr
+# Phase 2: unfreeze all backbone layers
 fine_tune_epochs:          50
-fine_tune_lr:              0.00002   # very low to avoid catastrophic forgetting
-fine_tune_unfrozen_layers: "all"     # unfreeze all backbone layers
+fine_tune_lr:              0.0001
+fine_tune_unfrozen_layers: "all"
 
 # --- Class weights ---
 compute_class_weight: true
@@ -39,7 +37,7 @@ contrast_range:  0.1
 
 # --- Head architecture ---
 hidden_layer_sizes: [512]
-dropout_rate: 0.5
+dropout_rate: 0.6
 
 # --- Compile ---
 optimizer: adam

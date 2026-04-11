@@ -1,8 +1,7 @@
 # ──────────────────────────────────────────────
 # MobileNetV2 — v6
-# Higher fine_tune_lr (1e-04) with best settings — tests whether more
-# aggressive backbone updates push val_f1 beyond 0.76.
-# batch=256, lr=0.004, fine_tune_lr=1e-04, unfrozen=60, dropout=0.5
+# Large batch, all layers unfrozen, high fine_tune_lr, dropout=0.6
+# batch=512, lr=0.008, fine_tune_lr=1e-04, unfrozen=all, dropout=0.6
 # ──────────────────────────────────────────────
 
 # --- Data ---
@@ -16,16 +15,16 @@ num_classes: 23
 img_size:    [224, 224]
 
 # --- Training ---
-batch_size: 256
+batch_size: 512
 epochs:     100
-patience:   12
+patience:   15
 
 # Phase 1: train head only (backbone frozen)
-learning_rate: 0.004
-# Phase 2: fine-tune top backbone layers at higher lr
-fine_tune_epochs:          40
-fine_tune_lr:              0.0001   # higher than previous best (8e-05) — tests limit
-fine_tune_unfrozen_layers: 60
+learning_rate: 0.008   # scaled with batch_size (512 = 2x 256, lr = 2x 0.004)
+# Phase 2: unfreeze all backbone layers
+fine_tune_epochs:          50
+fine_tune_lr:              0.0001
+fine_tune_unfrozen_layers: "all"
 
 # --- Class weights ---
 compute_class_weight: true
@@ -38,7 +37,7 @@ contrast_range:  0.1
 
 # --- Head architecture ---
 hidden_layer_sizes: [512]
-dropout_rate: 0.5
+dropout_rate: 0.6
 
 # --- Compile ---
 optimizer: adam

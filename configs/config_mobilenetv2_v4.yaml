@@ -1,8 +1,7 @@
 # ──────────────────────────────────────────────
 # MobileNetV2 — v4
-# Two-layer head [512, 256] combined with best dropout (0.5) and unfrozen=80.
-# Tests whether a richer head benefits from deeper backbone fine-tuning.
-# batch=256, lr=0.004, fine_tune_lr=8e-05, unfrozen=80, dropout=0.5, head=[512,256]
+# Large batch, all layers unfrozen, conservative fine_tune_lr, dropout=0.5
+# batch=512, lr=0.008, fine_tune_lr=2e-05, unfrozen=all, dropout=0.5
 # ──────────────────────────────────────────────
 
 # --- Data ---
@@ -16,16 +15,16 @@ num_classes: 23
 img_size:    [224, 224]
 
 # --- Training ---
-batch_size: 256
+batch_size: 512
 epochs:     100
-patience:   12
+patience:   15
 
 # Phase 1: train head only (backbone frozen)
-learning_rate: 0.004
-# Phase 2: fine-tune top backbone layers at lower lr
-fine_tune_epochs:          40
-fine_tune_lr:              0.00008
-fine_tune_unfrozen_layers: 80
+learning_rate: 0.008   # scaled with batch_size (512 = 2x 256, lr = 2x 0.004)
+# Phase 2: unfreeze all backbone layers
+fine_tune_epochs:          50
+fine_tune_lr:              0.00002
+fine_tune_unfrozen_layers: "all"
 
 # --- Class weights ---
 compute_class_weight: true
@@ -37,7 +36,7 @@ zoom_range:      0.1
 contrast_range:  0.1
 
 # --- Head architecture ---
-hidden_layer_sizes: [512, 256]   # two-layer head for richer feature transformation
+hidden_layer_sizes: [512]
 dropout_rate: 0.5
 
 # --- Compile ---
