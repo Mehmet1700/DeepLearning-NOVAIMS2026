@@ -1,5 +1,6 @@
 # ──────────────────────────────────────────────
 # MobileNetV2 — v2 (standard)
+# Balanced regularization with moderate augmentation and dropout.
 # dropout=0.4, lr=0.004, augmentation=0.1, unfrozen=30
 # ──────────────────────────────────────────────
 
@@ -11,7 +12,7 @@ test_dir:  data/test
 # --- Model ---
 backbone:    mobilenetv2
 num_classes: 23
-img_size:    [224, 224]
+img_size:    [224, 224]   # MobileNetV2 native input size
 
 # --- Training ---
 batch_size: 256
@@ -20,19 +21,19 @@ patience:   10
 
 # Phase 1: train head only (backbone frozen)
 learning_rate: 0.004
-# Phase 2: fine-tune backbone at lower lr
+# Phase 2: fine-tune top backbone layers at lower lr
 fine_tune_epochs:          40
 fine_tune_lr:              0.00001
-fine_tune_unfrozen_layers: 30
+fine_tune_unfrozen_layers: 30   # last N layers of backbone
 
 # --- Class weights ---
-compute_class_weight: true
+compute_class_weight: true   # handles class imbalance in WikiArt
 
 # --- Augmentation ---
 augment: true
-rotation_range:  0.1
-zoom_range:      0.1
-contrast_range:  0.1
+rotation_range:  0.1   # ±10% rotation
+zoom_range:      0.1   # ±10% zoom
+contrast_range:  0.1   # ±10% contrast
 
 # --- Head architecture ---
 hidden_layer_sizes: [256]

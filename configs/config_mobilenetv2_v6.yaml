@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────
-# MobileNetV2 — v1 (conservative)
-# Lower learning rate and fewer unfrozen layers to avoid catastrophic forgetting.
-# dropout=0.3, lr=0.002, augmentation=0.1, unfrozen=20
+# MobileNetV2 — v6
+# Combines deeper fine-tuning (v4) with larger head (v5).
+# dropout=0.3, lr=0.004, augmentation=0.1, unfrozen=50, head=[512]
 # ──────────────────────────────────────────────
 
 # --- Data ---
@@ -20,11 +20,11 @@ epochs:     100
 patience:   10
 
 # Phase 1: train head only (backbone frozen)
-learning_rate: 0.002
+learning_rate: 0.004
 # Phase 2: fine-tune top backbone layers at lower lr
-fine_tune_epochs:          30
-fine_tune_lr:              0.00001
-fine_tune_unfrozen_layers: 20   # last N layers of backbone
+fine_tune_epochs:          40
+fine_tune_lr:              0.00008
+fine_tune_unfrozen_layers: 50   # last N layers of backbone
 
 # --- Class weights ---
 compute_class_weight: true   # handles class imbalance in WikiArt
@@ -36,7 +36,7 @@ zoom_range:      0.1   # ±10% zoom
 contrast_range:  0.1   # ±10% contrast
 
 # --- Head architecture ---
-hidden_layer_sizes: [256]
+hidden_layer_sizes: [512]   # larger head for more representational capacity
 dropout_rate: 0.3
 
 # --- Compile ---
@@ -47,5 +47,5 @@ metrics:
   - accuracy
 
 # --- Output paths ---
-checkpoint_dir: outputs/checkpoints/mobilenetv2_v1
-log_dir:        outputs/logs/mobilenetv2_v1
+checkpoint_dir: outputs/checkpoints/mobilenetv2_v6
+log_dir:        outputs/logs/mobilenetv2_v6
