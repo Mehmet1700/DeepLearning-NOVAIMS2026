@@ -1,7 +1,8 @@
 # ──────────────────────────────────────────────
 # MobileNetV2 — v4
-# More unfrozen backbone layers for deeper fine-tuning, reduced dropout.
-# Based on best run (1138821): dropout=0.3, lr=0.004, augmentation=0.1, unfrozen=50
+# Large head with aggressive fine-tuning and high dropout — tests maximum
+# backbone adaptation while keeping head regularised.
+# batch=256, lr=0.004, dropout=0.5, head=[512], unfrozen=60, fine_tune_lr=6e-05
 # ──────────────────────────────────────────────
 
 # --- Data ---
@@ -17,14 +18,14 @@ img_size:    [224, 224]   # MobileNetV2 native input size
 # --- Training ---
 batch_size: 256
 epochs:     100
-patience:   10
+patience:   15   # longer patience to allow convergence under heavy regularisation
 
 # Phase 1: train head only (backbone frozen)
-learning_rate: 0.004
+learning_rate: 0.004   # scaled with batch_size (256 → 4× base lr)
 # Phase 2: fine-tune top backbone layers at lower lr
 fine_tune_epochs:          40
-fine_tune_lr:              0.00004
-fine_tune_unfrozen_layers: 50   # last N layers of backbone
+fine_tune_lr:              0.00006
+fine_tune_unfrozen_layers: 60   # last N layers of backbone
 
 # --- Class weights ---
 compute_class_weight: true   # handles class imbalance in WikiArt
@@ -36,8 +37,8 @@ zoom_range:      0.1   # ±10% zoom
 contrast_range:  0.1   # ±10% contrast
 
 # --- Head architecture ---
-hidden_layer_sizes: [256]
-dropout_rate: 0.3
+hidden_layer_sizes: [512]   # larger head capacity
+dropout_rate: 0.5   # high dropout to compensate for larger head
 
 # --- Compile ---
 optimizer: adam

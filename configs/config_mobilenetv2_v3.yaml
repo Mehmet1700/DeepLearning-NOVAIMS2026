@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────
-# MobileNetV2 — v3 (aggressive augmentation)
-# Stronger augmentation to combat overfitting, more backbone layers unfrozen.
-# dropout=0.4, lr=0.004, augmentation=0.15, unfrozen=50
+# MobileNetV2 — v3
+# Near-best config from previous runs with reduced dropout and deeper fine-tuning.
+# batch=256, lr=0.004, dropout=0.25, head=[256], unfrozen=40, fine_tune_lr=4e-05
 # ──────────────────────────────────────────────
 
 # --- Data ---
@@ -17,27 +17,27 @@ img_size:    [224, 224]   # MobileNetV2 native input size
 # --- Training ---
 batch_size: 256
 epochs:     100
-patience:   10
+patience:   12
 
 # Phase 1: train head only (backbone frozen)
-learning_rate: 0.004
+learning_rate: 0.004   # scaled with batch_size (256 → 4× base lr)
 # Phase 2: fine-tune top backbone layers at lower lr
 fine_tune_epochs:          40
-fine_tune_lr:              0.00001
-fine_tune_unfrozen_layers: 50   # last N layers of backbone
+fine_tune_lr:              0.00004
+fine_tune_unfrozen_layers: 40   # last N layers of backbone
 
 # --- Class weights ---
 compute_class_weight: true   # handles class imbalance in WikiArt
 
 # --- Augmentation ---
 augment: true
-rotation_range:  0.15   # ±15% rotation
-zoom_range:      0.15   # ±15% zoom
-contrast_range:  0.15   # ±15% contrast
+rotation_range:  0.1   # ±10% rotation
+zoom_range:      0.1   # ±10% zoom
+contrast_range:  0.1   # ±10% contrast
 
 # --- Head architecture ---
 hidden_layer_sizes: [256]
-dropout_rate: 0.4
+dropout_rate: 0.25   # slightly reduced to allow more capacity
 
 # --- Compile ---
 optimizer: adam

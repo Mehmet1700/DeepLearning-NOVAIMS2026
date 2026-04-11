@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────
 # MobileNetV2 — v5
-# Larger classification head to increase model capacity, higher fine-tune lr.
-# dropout=0.3, lr=0.004, augmentation=0.1, unfrozen=30, head=[512]
+# Deep two-layer head with very deep backbone fine-tuning and gentle augmentation.
+# batch=128, lr=0.002, dropout=0.3, head=[512, 256], unfrozen=80, aug=0.05
 # ──────────────────────────────────────────────
 
 # --- Data ---
@@ -15,28 +15,28 @@ num_classes: 23
 img_size:    [224, 224]   # MobileNetV2 native input size
 
 # --- Training ---
-batch_size: 256
+batch_size: 128
 epochs:     100
-patience:   10
+patience:   15   # longer patience for deep fine-tuning convergence
 
 # Phase 1: train head only (backbone frozen)
-learning_rate: 0.004
+learning_rate: 0.002   # scaled with batch_size (128 → 2× base lr)
 # Phase 2: fine-tune top backbone layers at lower lr
-fine_tune_epochs:          40
-fine_tune_lr:              0.00008
-fine_tune_unfrozen_layers: 30   # last N layers of backbone
+fine_tune_epochs:          50   # more epochs for deep backbone adaptation
+fine_tune_lr:              0.00002
+fine_tune_unfrozen_layers: 80   # last N layers — deep backbone fine-tuning
 
 # --- Class weights ---
 compute_class_weight: true   # handles class imbalance in WikiArt
 
 # --- Augmentation ---
 augment: true
-rotation_range:  0.1   # ±10% rotation
-zoom_range:      0.1   # ±10% zoom
-contrast_range:  0.1   # ±10% contrast
+rotation_range:  0.05   # ±5% — gentle augmentation, backbone does more heavy lifting
+zoom_range:      0.05
+contrast_range:  0.05
 
 # --- Head architecture ---
-hidden_layer_sizes: [512]   # larger head for more representational capacity
+hidden_layer_sizes: [512, 256]   # two-layer head for richer feature transformation
 dropout_rate: 0.3
 
 # --- Compile ---

@@ -1,7 +1,8 @@
 # ──────────────────────────────────────────────
 # MobileNetV2 — v6
-# Combines deeper fine-tuning (v4) with larger head (v5).
-# dropout=0.3, lr=0.004, augmentation=0.1, unfrozen=50, head=[512]
+# Two smaller dense layers in head — tests whether a funnel architecture
+# (256 → 128) outperforms a single wider layer.
+# batch=256, lr=0.004, dropout=0.3, head=[256, 128], unfrozen=50, fine_tune_lr=8e-05
 # ──────────────────────────────────────────────
 
 # --- Data ---
@@ -20,7 +21,7 @@ epochs:     100
 patience:   10
 
 # Phase 1: train head only (backbone frozen)
-learning_rate: 0.004
+learning_rate: 0.004   # scaled with batch_size (256 → 4× base lr)
 # Phase 2: fine-tune top backbone layers at lower lr
 fine_tune_epochs:          40
 fine_tune_lr:              0.00008
@@ -36,7 +37,7 @@ zoom_range:      0.1   # ±10% zoom
 contrast_range:  0.1   # ±10% contrast
 
 # --- Head architecture ---
-hidden_layer_sizes: [512]   # larger head for more representational capacity
+hidden_layer_sizes: [256, 128]   # funnel architecture: gradually compress features
 dropout_rate: 0.3
 
 # --- Compile ---
