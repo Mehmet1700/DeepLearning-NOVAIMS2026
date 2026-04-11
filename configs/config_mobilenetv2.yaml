@@ -16,9 +16,9 @@ num_classes: 23
 img_size:    [224, 224]   # MobileNetV2 native input size
 
 # --- Training ---
-batch_size: 64
+batch_size: 128
 epochs:     100
-patience:   7
+patience:   10
 
 # Phase 1: train head only (backbone frozen)
 learning_rate: 0.001
@@ -28,17 +28,17 @@ fine_tune_lr:              0.00001
 fine_tune_unfrozen_layers: 10      # last N layers — avoids catastrophic forgetting
 
 # --- Class weights ---
-compute_class_weight: false
+compute_class_weight: true
 
 # --- Augmentation ---
-augment: true
-rotation_range:  0.01
-zoom_range:      0.01
-contrast_range:  0.01
+augment: false
+#rotation_range:  0.01
+#zoom_range:      0.01
+#contrast_range:  0.01
 
 # --- Head architecture ---
 hidden_layer_sizes: [256]
-dropout_rate: 0.2
+dropout_rate: 0.4
 
 # --- Compile ---
 optimizer: adam
