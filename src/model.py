@@ -289,6 +289,8 @@ def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, conf
     dropout_rate = cfg.get("dropout_rate", 0.4)
     use_batch_norm = cfg.get("batch_norm", True)
     pooling_type = cfg.get("pooling_type", "global_average_pooling2d").lower()
+    l2_lambda = cfg.get("l2_regularization", 0.0)
+    regularizer = tf.keras.regularizers.l2(l2_lambda) if l2_lambda else None
 
     inputs = tf.keras.Input(shape=(*img_size, 3))
 
@@ -334,7 +336,7 @@ def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, conf
     x = tf.keras.layers.Dropout(dropout_rate)(x)
 
     for units in hidden_layer_sizes:
-        x = tf.keras.layers.Dense(units, activation="relu")(x)
+        x = tf.keras.layers.Dense(units, activation="relu", kernel_regularizer=regularizer)(x)
         if use_batch_norm:
             x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.Dropout(dropout_rate)(x)

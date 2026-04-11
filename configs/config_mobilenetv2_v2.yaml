@@ -1,7 +1,6 @@
 # ──────────────────────────────────────────────
 # MobileNetV2 — v2
-# All layers unfrozen, medium fine_tune_lr, dropout=0.5
-# batch=256, lr=0.004, fine_tune_lr=6e-05, unfrozen=all, dropout=0.5
+# L2=0.001,  dropout=0.5, fine_tune_lr=2e-05 — medium L2, moderate dropout
 # ──────────────────────────────────────────────
 
 # --- Data ---
@@ -23,7 +22,7 @@ patience:   15
 learning_rate: 0.004
 # Phase 2: unfreeze all backbone layers
 fine_tune_epochs:          50
-fine_tune_lr:              0.00006
+fine_tune_lr:              0.00002
 fine_tune_unfrozen_layers: "all"
 
 # --- Class weights ---
@@ -38,6 +37,7 @@ contrast_range:  0.1
 # --- Head architecture ---
 hidden_layer_sizes: [512]
 dropout_rate: 0.5
+l2_regularization: 0.001
 
 # --- Compile ---
 optimizer: adam

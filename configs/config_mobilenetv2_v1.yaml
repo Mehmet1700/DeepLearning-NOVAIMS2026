@@ -1,7 +1,6 @@
 # ──────────────────────────────────────────────
 # MobileNetV2 — v1
-# All layers unfrozen, conservative fine_tune_lr, dropout=0.5
-# batch=256, lr=0.004, fine_tune_lr=2e-05, unfrozen=all, dropout=0.5
+# L2=0.0001, dropout=0.5, fine_tune_lr=2e-05 — weak L2, moderate dropout
 # ──────────────────────────────────────────────
 
 # --- Data ---
@@ -38,6 +37,7 @@ contrast_range:  0.1
 # --- Head architecture ---
 hidden_layer_sizes: [512]
 dropout_rate: 0.5
+l2_regularization: 0.0001
 
 # --- Compile ---
 optimizer: adam
