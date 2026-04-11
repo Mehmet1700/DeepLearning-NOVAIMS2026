@@ -113,7 +113,15 @@ def load_split(split_dir, img_size, batch_size, augment=False, shuffle=None, con
     if img_size[0] <= 300:
         cache_path = _build_cache_path(split_dir, img_size, batch_size, shuffle=augment)
         cache_path.parent.mkdir(parents=True, exist_ok=True)
-        ds = ds.cache(str(cache_path))
+        lockfile   = Path(str(cache_path) + "_0.lockfile")
+        index_file = Path(str(cache_path) + "_0.index")
+        if index_file.exists() or not lockfile.exists():
+            # Cache is fully written or not yet started — safe to use.
+            ds = ds.cache(str(cache_path))
+        else:
+            # Another parallel job is writing this cache — skip to avoid conflict.
+            # Epoch 1 will be slower but all epochs are correct.
+            print(f"  [dataset] Cache lockfile detected, skipping cache for this run: {lockfile}")
 
     # Apply augmentation on training set only
     if augment:
