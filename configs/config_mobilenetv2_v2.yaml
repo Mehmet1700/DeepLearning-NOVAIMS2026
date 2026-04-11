@@ -48,5 +48,5 @@ metrics:
   - accuracy
 
 # --- Output paths ---
-checkpoint_dir: outputs/checkpoints/mobilenetv2_v2
-log_dir:        outputs/logs/mobilenetv2_v2
+checkpoint_dir: outputs/checkpoints/mobilenetv2
+log_dir:        outputs/logs/mobilenetv2
