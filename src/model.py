@@ -1,6 +1,7 @@
 """Model-building utilities for artist classification."""
 
 import tensorflow as tf
+import keras_hub
 
 SERIALIZATION_PACKAGE = "deeplearning_novaims2026"
 
@@ -54,6 +55,7 @@ BACKBONE_PREPROCESSORS = {
     "mobilenetv2": mobilenetv2_preprocess_input,
     "mobilenetv3": mobilenetv3_preprocess_input,
     "densenet121": densenet121_preprocess_input,
+    "vit": lambda x: x,
 }
 
 BACKBONES = {
@@ -81,6 +83,7 @@ BACKBONES = {
         tf.keras.applications.DenseNet121,
         BACKBONE_PREPROCESSORS["densenet121"],
     ),
+    "vit": (None, None),
 }
 
 BACKBONE_LAYER_NAMES = {
@@ -90,6 +93,7 @@ BACKBONE_LAYER_NAMES = {
     "mobilenetv2": "mobilenetv2_1.00_224",
     "mobilenetv3": "MobilenetV3large",
     "densenet121": "densenet121",
+    "vit": "vit"
 }
 
 
@@ -179,6 +183,14 @@ def _get_backbone_layer_name(backbone_name):
 
 
 def configure_fine_tuning(model, backbone_name, unfrozen_layers):
+
+    if backbone_name == "vit_pretrained":
+        print("Unfreezing full ViT model for fine-tuning")
+
+        model.trainable = True
+
+        return len(model.layers)
+
     """Unfreeze the last N backbone layers and keep the classification head trainable."""
     if isinstance(unfrozen_layers, str):
         if unfrozen_layers != "all":
@@ -347,6 +359,91 @@ def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, conf
     _compile(model, config, num_classes)
     return model
 
+def build_vit_model(num_classes, img_size, config):
+    """Simple Vision Transformer (ViT) implementation in Keras."""
+
+    patch_size = config.get("patch_size", 16)
+    projection_dim = config.get("projection_dim", 64)
+    num_heads = config.get("num_heads", 4)
+    transformer_layers = config.get("transformer_layers", 6)
+    mlp_dim = config.get("mlp_dim", 128)
+
+    input_shape = (*img_size, 3)
+    inputs = tf.keras.Input(shape=input_shape)
+
+    # 1. Create patches
+    patches = tf.keras.layers.Conv2D(
+        filters=projection_dim,
+        kernel_size=patch_size,
+        strides=patch_size,
+        padding="valid"
+    )(inputs)
+
+    patches = tf.keras.layers.Reshape((-1, projection_dim))(patches)
+
+    # 2. Add positional embeddings
+    positions = tf.range(start=0, limit=patches.shape[1], delta=1)
+    pos_embedding = tf.keras.layers.Embedding(
+        input_dim=patches.shape[1], output_dim=projection_dim
+    )(positions)
+
+    x = patches + pos_embedding
+
+    # 3. Transformer blocks
+    for _ in range(transformer_layers):
+        # LayerNorm + Self-Attention
+        x1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)(x)
+        attention = tf.keras.layers.MultiHeadAttention(
+            num_heads=num_heads, key_dim=projection_dim
+        )(x1, x1)
+
+        x2 = tf.keras.layers.Add()([x, attention])
+
+        # MLP
+        x3 = tf.keras.layers.LayerNormalization(epsilon=1e-6)(x2)
+        mlp = tf.keras.Sequential([
+            tf.keras.layers.Dense(mlp_dim, activation="gelu"),
+            tf.keras.layers.Dense(projection_dim),
+        ])(x3)
+
+        x = tf.keras.layers.Add()([x2, mlp])
+
+    # 4. Classification head
+    x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(x)
+    x = tf.keras.layers.GlobalAveragePooling1D()(x)
+    x = tf.keras.layers.Dense(mlp_dim, activation="relu")(x)
+    outputs = tf.keras.layers.Dense(num_classes, activation="softmax")(x)
+
+    model = tf.keras.Model(inputs, outputs)
+
+    _compile(model, config, num_classes)
+    return model
+
+def build_vit_pretrained(num_classes, img_size, config):
+    """Pretrained ViT-Large from KerasHub."""
+
+    preset = "vit_large_patch16_224_imagenet21k"
+
+    # Load pretrained backbone
+    backbone = keras_hub.models.Backbone.from_preset(preset)
+
+    # Preprocessing (VERY IMPORTANT)
+    preprocessor = keras_hub.models.ViTImageClassifierPreprocessor.from_preset(preset)
+
+    # Build classifier
+    model = keras_hub.models.ViTImageClassifier(
+        backbone=backbone,
+        num_classes=num_classes,
+        preprocessor=preprocessor,
+    )
+
+    # Freeze backbone (Phase 1)
+    if config.get("freeze_base", True):
+        backbone.trainable = False
+
+    _compile(model, config, num_classes)
+
+    return model
 
 def build_model(backbone: str, num_classes: int, img_size=(224, 224), freeze_base=True, config=None):
     """
@@ -370,6 +467,12 @@ def build_model(backbone: str, num_classes: int, img_size=(224, 224), freeze_bas
 
     if backbone == "perceptron":
         return build_perceptron(num_classes, img_size, config)
+    
+    if backbone == "vit":
+        return build_vit_model(num_classes, img_size, config)
+
+    if backbone == "vit_pretrained":
+        return build_vit_pretrained(num_classes, img_size, config)
 
     if backbone not in BACKBONES:
         raise ValueError(f"Unsupported backbone: '{backbone}'. Choose from: baseline, perceptron, {', '.join(BACKBONES)}")
