@@ -207,7 +207,7 @@ def train(config_path: str, run_id: str | None = None):
             )
             mlflow.log_param("phase2_best_epoch", best2 + 1)
             mlflow.log_param("fine_tune_lr", fine_tune_lr)
-            mlflow.log_param("fine_tune_unfrozen_layers", unfrozen_label)
+            mlflow.log_param("fine_tune_actual_layers", unfrozen_label)
             compute_and_log_auc(trained_model, val_ds, num_classes, "phase2", 1)
             trained_model.save(checkpoint_layout.phase2_final_model_path)
         else:

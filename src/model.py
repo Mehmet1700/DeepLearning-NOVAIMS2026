@@ -1,7 +1,6 @@
 """Model-building utilities for artist classification."""
 
 import tensorflow as tf
-import keras_hub
 
 SERIALIZATION_PACKAGE = "deeplearning_novaims2026"
 
