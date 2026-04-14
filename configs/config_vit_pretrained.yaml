@@ -1,0 +1,36 @@
+# --- Data ---
+train_dir: data/train
+val_dir:   data/validation
+test_dir:  data/test
+
+# --- Model ---
+backbone: vit_pretrained
+num_classes: 23
+img_size: [224, 224]
+
+# --- Training ---
+batch_size: 8
+epochs: 30
+patience: 5
+learning_rate: 0.0001
+
+# --- Fine-tuning ---
+fine_tune_epochs: 5
+fine_tune_lr: 0.00001
+fine_tune_unfrozen_layers: all
+
+# --- Compile ---
+optimizer: adam
+loss: sparse_categorical_crossentropy
+metrics:
+  - f1_score
+
+# --- Augmentation ---
+augment: true
+rotation_range: 0.1
+zoom_range: 0.1
+contrast_range: 0.1
+
+# --- Output ---
+checkpoint_dir: outputs/checkpoints/vit_large
+log_dir: outputs/logs/vit_large
