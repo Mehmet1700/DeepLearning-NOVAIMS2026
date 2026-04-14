@@ -72,7 +72,14 @@ sbatch --account=f202500002hpcvlabistulg \
        --partition=dev-a100-40 \
        jobs/train_hpc.slurm configs/config_efficientnetb3.yaml
 ```
-
+```bash
+sbatch --account=f202500002hpcvlabistulg        --partition=dev-a100-40        --time=00:60:00        jobs/train_hpc.slurm configs/config_vgg16.yaml
+```
+```bash
+sbatch --account=f202500002hpcvlabistulg 
+       --partition=dev-a100-40 
+       jobs/evaluate_hpc.slurm configs/config_vgg16.yaml outputs/checkpoints/vgg16/1125264__a2e94261ed7a40c1ba7c0419d1983607/phase1/best_model.keras
+```
 You can submit multiple models in parallel:
 
 ```bash
@@ -109,6 +116,7 @@ squeue -u $USER
 
 # Watch live output log
 cat outputs/logs/slurm_<job_id>.out
+cat outputs/logs/slurm_<job_id>.err
 
 # Cancel a job
 scancel <job_id>
