@@ -36,8 +36,10 @@ module load cuDNN/9.5.1.17-CUDA-12.6.0
 module load Python/3.11.3-GCCcore-12.3.0
 source .venv/bin/activate
 
-# Point XLA to the CUDA nvvm/libdevice compiler (set by EasyBuild CUDA module)
-export XLA_FLAGS="--xla_gpu_cuda_data_dir=$EBROOTCUDA"
+# Point XLA to the CUDA nvvm/libdevice compiler (set by EasyBuild CUDA module).
+# Disable XLA's cuDNN convolution autotuner — it fails on non-standard kernel
+# shapes (e.g. ViT patch-embedding 16×16 stride-16 conv) with cuDNN 9.x.
+export XLA_FLAGS="--xla_gpu_cuda_data_dir=$EBROOTCUDA --xla_gpu_autotune_level=0"
 # Suppress TF info/warning spam in logs
 export TF_CPP_MIN_LOG_LEVEL=2
 # Dedicated GPU threads — reduces scheduling overhead on single-GPU jobs
