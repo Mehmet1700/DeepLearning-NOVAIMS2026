@@ -1,11 +1,10 @@
 # ──────────────────────────────────────────────
 # ViT-Base/16 Pretrained — v1
 # Backbone: TF Hub (sayakpaul/vit_b16_fe/1, ImageNet21k)
-# TF 2.15 compatible — no keras_hub required
 #
 # BEFORE FIRST HPC JOB — download weights on the login node:
 #   export TFHUB_CACHE_DIR=$(pwd)/.tfhub_cache
-#   python -c "import tensorflow_hub as hub; hub.load('https://tfhub.dev/sayakpaul/vit_b16_fe/1')"
+#   python -c 'import tensorflow_hub as hub; hub.load("https://tfhub.dev/sayakpaul/vit_b16_fe/1")'
 # ──────────────────────────────────────────────
 
 # --- Data ---
@@ -20,15 +19,17 @@ num_classes: 23
 img_size:    [224, 224]
 
 # --- Training ---
-batch_size: 32
-epochs:     50
-patience:   10
+# batch_size=128 → 72 steps/epoch instead of 289 → ~4x faster per epoch
+# LR scaled linearly: 0.001 × (128/32) = 0.004
+batch_size: 128
+epochs:     30
+patience:   7
 
 # Phase 1: train classification head only (backbone frozen)
-learning_rate: 0.001
+learning_rate: 0.004
 
 # Phase 2: full fine-tune at low LR
-fine_tune_epochs:          20
+fine_tune_epochs:          15
 fine_tune_lr:              0.00001
 fine_tune_unfrozen_layers: all
 
