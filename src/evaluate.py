@@ -154,12 +154,22 @@ def evaluate(
         cfg["test_dir"], img_size, batch_size, augment=False
     )
 
-    loaded_model = tf.keras.models.load_model(
-        resolved_weights_path,
-        safe_mode=False,
-        compile=False,
-        custom_objects=custom_objects,
-    )
+    try:
+        loaded_model = tf.keras.models.load_model(
+            resolved_weights_path,
+            safe_mode=False,
+            compile=False,
+            custom_objects=custom_objects,
+        )
+    except (TypeError, ModuleNotFoundError):
+        # Models saved with Keras 2 (TF ≤2.15) cannot be loaded by Keras 3.
+        # tf-keras provides the Keras 2 compatibility layer for this case.
+        import tf_keras
+        loaded_model = tf_keras.models.load_model(
+            resolved_weights_path,
+            compile=False,
+            custom_objects=custom_objects,
+        )
 
     # Initialize MLflow
     mlflow.set_tracking_uri("sqlite:///mlflow.db")
