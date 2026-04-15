@@ -47,6 +47,7 @@ export TFHUB_CACHE_DIR="$(pwd)/.tfhub_cache"
 echo "Python     : $(which python3) — $(python3 --version)"
 echo "Working dir: $(pwd)"
 echo "Config     : $CONFIG"
+echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader
 echo "------------------------------------------------"
 
