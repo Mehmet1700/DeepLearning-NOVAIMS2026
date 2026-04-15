@@ -1,0 +1,49 @@
+# ──────────────────────────────────────────────
+# ViT-Base (from scratch, pure TF/Keras) — v1
+# Architecture: ViT-Base/16 (patch=16, dim=768, 12 heads, 12 layers)
+# No pretrained weights — works with TF 2.15, no keras_hub required.
+# ──────────────────────────────────────────────
+
+# --- Data ---
+train_dir: data/train
+val_dir:   data/validation
+test_dir:  data/test
+
+# --- Model ---
+backbone:    vit
+num_classes: 23
+img_size:    [224, 224]
+
+# --- ViT architecture (ViT-Base/16 scale) ---
+patch_size:         16
+projection_dim:     768
+num_heads:          12
+transformer_layers: 12
+mlp_dim:            3072
+dropout_rate:       0.1
+
+# --- Training ---
+batch_size: 64
+epochs:     100
+patience:   15
+learning_rate: 0.001
+
+# --- Class weights ---
+compute_class_weight: true
+
+# --- Augmentation ---
+augment: true
+rotation_range:  0.1
+zoom_range:      0.1
+contrast_range:  0.1
+
+# --- Compile ---
+optimizer: adam
+loss:      sparse_categorical_crossentropy
+metrics:
+  - f1_score
+  - accuracy
+
+# --- Output paths ---
+checkpoint_dir: outputs/checkpoints/vit
+log_dir:        outputs/logs/vit

@@ -40,6 +40,8 @@ export TF_CPP_MIN_LOG_LEVEL=2
 # Dedicated GPU threads — reduces scheduling overhead on single-GPU jobs
 export TF_GPU_THREAD_MODE=gpu_private
 export TF_GPU_THREAD_COUNT=1
+# TF Hub cache — allows compute nodes (no internet) to load pre-downloaded models
+export TFHUB_CACHE_DIR="$(pwd)/.tfhub_cache"
 
 # --- Debug info ---
 echo "Python     : $(which python3) — $(python3 --version)"

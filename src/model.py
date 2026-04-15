@@ -1,7 +1,6 @@
 """Model-building utilities for artist classification."""
 
 import tensorflow as tf
-import keras_hub
 
 SERIALIZATION_PACKAGE = "deeplearning_novaims2026"
 
@@ -127,7 +126,7 @@ def get_model_custom_objects(backbone_name=None):
         return custom_objects
 
     backbone_key = backbone_name.lower()
-    if backbone_key in {"baseline", "perceptron"}:
+    if backbone_key in {"baseline", "perceptron", "vit", "vit_tfhub", "vit_pretrained"}:
         return custom_objects
     if backbone_key not in BACKBONE_PREPROCESSORS:
         raise ValueError(
@@ -183,12 +182,10 @@ def _get_backbone_layer_name(backbone_name):
 
 
 def configure_fine_tuning(model, backbone_name, unfrozen_layers):
-
-    if backbone_name == "vit_pretrained":
-        print("Unfreezing full ViT model for fine-tuning")
-
+    """Unfreeze the last N backbone layers and keep the classification head trainable."""
+    if backbone_name in {"vit_pretrained", "vit_tfhub"}:
+        print(f"Unfreezing full {backbone_name} model for fine-tuning")
         model.trainable = True
-
         return len(model.layers)
 
     """Unfreeze the last N backbone layers and keep the classification head trainable."""
@@ -360,67 +357,121 @@ def build_transfer_model(backbone_name, num_classes, img_size, freeze_base, conf
     return model
 
 def build_vit_model(num_classes, img_size, config):
-    """Simple Vision Transformer (ViT) implementation in Keras."""
+    """ViT-Base architecture trained from scratch using pure TF/Keras.
 
-    patch_size = config.get("patch_size", 16)
-    projection_dim = config.get("projection_dim", 64)
-    num_heads = config.get("num_heads", 4)
-    transformer_layers = config.get("transformer_layers", 6)
-    mlp_dim = config.get("mlp_dim", 128)
+    Defaults match the ViT-Base/16 paper configuration:
+      projection_dim=768, num_heads=12, transformer_layers=12, mlp_dim=3072.
+    Override via config keys: patch_size, projection_dim, num_heads,
+    transformer_layers, mlp_dim, dropout_rate.
+    """
+    cfg = config or {}
+    patch_size         = cfg.get("patch_size", 16)
+    projection_dim     = cfg.get("projection_dim", 768)
+    num_heads          = cfg.get("num_heads", 12)
+    transformer_layers = cfg.get("transformer_layers", 12)
+    mlp_dim            = cfg.get("mlp_dim", 3072)
+    dropout_rate       = cfg.get("dropout_rate", 0.1)
 
-    input_shape = (*img_size, 3)
-    inputs = tf.keras.Input(shape=input_shape)
+    h, w = img_size
+    num_patches = (h // patch_size) * (w // patch_size)   # 196 for 224×224, patch=16
 
-    # 1. Create patches
-    patches = tf.keras.layers.Conv2D(
+    inputs = tf.keras.Input(shape=(*img_size, 3))
+
+    # 1. Normalize [0, 255] → [0, 1]
+    x = tf.keras.layers.Rescaling(1.0 / 255.0)(inputs)
+
+    # 2. Patch embedding — Conv2D extracts & projects patches in one step
+    x = tf.keras.layers.Conv2D(
         filters=projection_dim,
         kernel_size=patch_size,
         strides=patch_size,
-        padding="valid"
-    )(inputs)
+        padding="valid",
+    )(x)
+    x = tf.keras.layers.Reshape((num_patches, projection_dim))(x)
 
-    patches = tf.keras.layers.Reshape((-1, projection_dim))(patches)
-
-    # 2. Add positional embeddings
-    positions = tf.range(start=0, limit=patches.shape[1], delta=1)
+    # 3. Learned positional embedding
+    positions = tf.range(start=0, limit=num_patches, delta=1)
     pos_embedding = tf.keras.layers.Embedding(
-        input_dim=patches.shape[1], output_dim=projection_dim
+        input_dim=num_patches, output_dim=projection_dim
     )(positions)
+    x = x + pos_embedding
+    x = tf.keras.layers.Dropout(dropout_rate)(x)
 
-    x = patches + pos_embedding
-
-    # 3. Transformer blocks
+    # 4. Transformer encoder blocks
     for _ in range(transformer_layers):
-        # LayerNorm + Self-Attention
+        # Self-attention branch
         x1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)(x)
-        attention = tf.keras.layers.MultiHeadAttention(
-            num_heads=num_heads, key_dim=projection_dim
+        x1 = tf.keras.layers.MultiHeadAttention(
+            num_heads=num_heads,
+            key_dim=projection_dim // num_heads,
+            dropout=dropout_rate,
         )(x1, x1)
+        x1 = tf.keras.layers.Dropout(dropout_rate)(x1)
+        x = tf.keras.layers.Add()([x, x1])
 
-        x2 = tf.keras.layers.Add()([x, attention])
+        # MLP branch
+        x2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)(x)
+        x2 = tf.keras.layers.Dense(mlp_dim, activation="gelu")(x2)
+        x2 = tf.keras.layers.Dropout(dropout_rate)(x2)
+        x2 = tf.keras.layers.Dense(projection_dim)(x2)
+        x2 = tf.keras.layers.Dropout(dropout_rate)(x2)
+        x = tf.keras.layers.Add()([x, x2])
 
-        # MLP
-        x3 = tf.keras.layers.LayerNormalization(epsilon=1e-6)(x2)
-        mlp = tf.keras.Sequential([
-            tf.keras.layers.Dense(mlp_dim, activation="gelu"),
-            tf.keras.layers.Dense(projection_dim),
-        ])(x3)
-
-        x = tf.keras.layers.Add()([x2, mlp])
-
-    # 4. Classification head
+    # 5. Classification head
     x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(x)
     x = tf.keras.layers.GlobalAveragePooling1D()(x)
-    x = tf.keras.layers.Dense(mlp_dim, activation="relu")(x)
-    outputs = tf.keras.layers.Dense(num_classes, activation="softmax")(x)
+    x = tf.keras.layers.Dropout(dropout_rate)(x)
+    outputs = tf.keras.layers.Dense(num_classes, activation="softmax", dtype="float32")(x)
 
     model = tf.keras.Model(inputs, outputs)
-
-    _compile(model, config, num_classes)
+    _compile(model, cfg, num_classes)
     return model
 
+def build_vit_tfhub(num_classes, img_size, freeze_base=True, config=None):
+    """Pretrained ViT-Base/16 (ImageNet21k) via TensorFlow Hub.
+
+    Compatible with TF 2.15. Requires: pip install tensorflow-hub
+
+    Before submitting an HPC job (from the login node):
+        export TFHUB_CACHE_DIR=$(pwd)/.tfhub_cache
+        python -c "import tensorflow_hub as hub; hub.load('https://tfhub.dev/sayakpaul/vit_b16_fe/1')"
+    Then ensure the SLURM job exports the same TFHUB_CACHE_DIR.
+    """
+    try:
+        import tensorflow_hub as hub
+    except ImportError as exc:
+        raise ImportError(
+            "backbone='vit_tfhub' requires tensorflow-hub. "
+            "Install with: pip install tensorflow-hub"
+        ) from exc
+
+    cfg = config or {}
+    hub_url = cfg.get("vit_hub_url", "https://tfhub.dev/sayakpaul/vit_b16_fe/1")
+    dropout_rate = cfg.get("dropout_rate", 0.1)
+
+    inputs = tf.keras.Input(shape=(*img_size, 3))
+    # Scale [0, 255] → [0, 1]; the hub model applies ImageNet normalisation internally
+    x = tf.keras.layers.Rescaling(1.0 / 255.0)(inputs)
+    # hub.KerasLayer wraps the pretrained ViT as a single Keras layer
+    x = hub.KerasLayer(hub_url, trainable=not freeze_base, name="vit_b16_fe")(x)
+    x = tf.keras.layers.Dropout(dropout_rate)(x)
+    outputs = tf.keras.layers.Dense(num_classes, activation="softmax", dtype="float32")(x)
+
+    model = tf.keras.Model(inputs, outputs)
+    _compile(model, cfg, num_classes)
+    return model
+
+
 def build_vit_pretrained(num_classes, img_size, config):
-    """Pretrained ViT-Large from KerasHub."""
+    """Pretrained ViT from KerasHub. Requires keras_hub + Keras 3 (TF 2.16+)."""
+    try:
+        import keras_hub
+    except ImportError as exc:
+        raise ImportError(
+            "build_vit_pretrained requires keras_hub with Keras 3 (TF 2.16+). "
+            "Install with: pip install keras-hub. "
+            "With TF 2.15 use backbone='vit' (custom ViT) instead."
+        ) from exc
 
     preset = "vit_large_patch16_224_imagenet21k"
 
@@ -470,6 +521,9 @@ def build_model(backbone: str, num_classes: int, img_size=(224, 224), freeze_bas
     
     if backbone == "vit":
         return build_vit_model(num_classes, img_size, config)
+
+    if backbone == "vit_tfhub":
+        return build_vit_tfhub(num_classes, img_size, freeze_base, config)
 
     if backbone == "vit_pretrained":
         return build_vit_pretrained(num_classes, img_size, config)
