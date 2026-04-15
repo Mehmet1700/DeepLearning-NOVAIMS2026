@@ -427,24 +427,58 @@ def build_vit_model(num_classes, img_size, config):
     _compile(model, cfg, num_classes)
     return model
 
+@tf.keras.utils.register_keras_serializable(package=SERIALIZATION_PACKAGE)
+class ViTHubLayer(tf.keras.layers.Layer):
+    """TF Hub ViT-Base/16 feature extractor compatible with Keras 3 Functional API.
+
+    hub.KerasLayer is not compatible with Keras 3 because it tries to call the
+    underlying tf.function during symbolic graph construction, which fails when
+    the input is a KerasTensor (no numeric value). This class fixes it by
+    overriding compute_output_shape so Keras 3 can determine the output shape
+    symbolically without ever calling the hub model. The hub model is only
+    invoked during actual forward passes with real tensors.
+    """
+
+    def __init__(self, hub_url, **kwargs):
+        super().__init__(**kwargs)
+        self.hub_url = hub_url
+        self._hub_module = None
+
+    def build(self, input_shape):
+        try:
+            import tensorflow_hub as hub
+        except ImportError as exc:
+            raise ImportError(
+                "ViTHubLayer requires tensorflow-hub. "
+                "Install with: pip install tensorflow-hub"
+            ) from exc
+        self._hub_module = hub.load(self.hub_url)
+        super().build(input_shape)
+
+    def call(self, inputs, training=None):
+        # Called only with real tensors during model.fit() / model.predict()
+        return self._hub_module(inputs, training=bool(training))
+
+    def compute_output_shape(self, input_shape):
+        # ViT-Base/16 outputs a 768-dimensional feature vector per image.
+        # Keras 3 calls this during Functional API graph building instead of
+        # calling call(), which avoids the KerasTensor incompatibility.
+        return (input_shape[0], 768)
+
+    def get_config(self):
+        return {**super().get_config(), "hub_url": self.hub_url}
+
+
 def build_vit_tfhub(num_classes, img_size, freeze_base=True, config=None):
     """Pretrained ViT-Base/16 (ImageNet21k) via TensorFlow Hub.
 
-    Compatible with TF 2.15. Requires: pip install tensorflow-hub
+    Requires: pip install tensorflow-hub
 
-    Before submitting an HPC job (from the login node):
+    Before the first HPC job, download weights on the login node:
         export TFHUB_CACHE_DIR=$(pwd)/.tfhub_cache
-        python -c "import tensorflow_hub as hub; hub.load('https://tfhub.dev/sayakpaul/vit_b16_fe/1')"
-    Then ensure the SLURM job exports the same TFHUB_CACHE_DIR.
+        python -c 'import tensorflow_hub as hub; hub.load("https://tfhub.dev/sayakpaul/vit_b16_fe/1")'
+    The SLURM job script already exports TFHUB_CACHE_DIR automatically.
     """
-    try:
-        import tensorflow_hub as hub
-    except ImportError as exc:
-        raise ImportError(
-            "backbone='vit_tfhub' requires tensorflow-hub. "
-            "Install with: pip install tensorflow-hub"
-        ) from exc
-
     cfg = config or {}
     hub_url = cfg.get("vit_hub_url", "https://tfhub.dev/sayakpaul/vit_b16_fe/1")
     dropout_rate = cfg.get("dropout_rate", 0.1)
@@ -452,8 +486,7 @@ def build_vit_tfhub(num_classes, img_size, freeze_base=True, config=None):
     inputs = tf.keras.Input(shape=(*img_size, 3))
     # Scale [0, 255] → [0, 1]; the hub model applies ImageNet normalisation internally
     x = tf.keras.layers.Rescaling(1.0 / 255.0)(inputs)
-    # hub.KerasLayer wraps the pretrained ViT as a single Keras layer
-    x = hub.KerasLayer(hub_url, trainable=not freeze_base, name="vit_b16_fe")(x)
+    x = ViTHubLayer(hub_url, trainable=not freeze_base, name="vit_b16_fe")(x)
     x = tf.keras.layers.Dropout(dropout_rate)(x)
     outputs = tf.keras.layers.Dense(num_classes, activation="softmax", dtype="float32")(x)
 
