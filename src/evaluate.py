@@ -167,6 +167,7 @@ def evaluate(
         import tf_keras
         loaded_model = tf_keras.models.load_model(
             resolved_weights_path,
+            safe_mode=False,
             compile=False,
             custom_objects=custom_objects,
         )
