@@ -456,8 +456,9 @@ class ViTHubLayer(tf.keras.layers.Layer):
         super().build(input_shape)
 
     def call(self, inputs, training=None):
-        # Called only with real tensors during model.fit() / model.predict()
-        return self._hub_module(inputs, training=bool(training))
+        # Called only with real tensors during model.fit() / model.predict().
+        # The hub model signature only accepts inputs (no training argument).
+        return self._hub_module(inputs)
 
     def compute_output_shape(self, input_shape):
         # ViT-Base/16 outputs a 768-dimensional feature vector per image.
