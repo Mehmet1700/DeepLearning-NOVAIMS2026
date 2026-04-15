@@ -28,13 +28,19 @@ echo "Start time : $(date)"
 echo "================================================"
 
 # --- Environment setup ---
-module load CUDA/12.1.1
-module load cuDNN/8.9.2.26-CUDA-12.1.1
+# TF 2.21 ships bundled CUDA 12.5+ (nvidia-* wheel packages) — do NOT load
+# the system CUDA/cuDNN modules; they would override the bundled libraries and
+# prevent TF from seeing the GPU.
 module load Python/3.11.3-GCCcore-12.3.0
 source .venv/bin/activate
 
-# Point XLA to the CUDA nvvm/libdevice compiler (set by EasyBuild module)
-export XLA_FLAGS="--xla_gpu_cuda_data_dir=$EBROOTCUDA"
+# XLA: point to the bundled CUDA nvvm/libdevice that comes with TF 2.21's
+# nvidia-cuda-nvcc wheel (installed inside the venv).
+# If the path doesn't exist we fall back silently — XLA auto-detects in most cases.
+_BUNDLED_CUDA="$(python3 -c 'import nvidia.cuda_nvcc; import os; print(os.path.dirname(nvidia.cuda_nvcc.__file__))' 2>/dev/null)/bin/.."
+if [ -d "$_BUNDLED_CUDA" ]; then
+    export XLA_FLAGS="--xla_gpu_cuda_data_dir=$_BUNDLED_CUDA"
+fi
 # Suppress TF info/warning spam in logs
 export TF_CPP_MIN_LOG_LEVEL=2
 # Dedicated GPU threads — reduces scheduling overhead on single-GPU jobs
