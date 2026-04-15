@@ -77,6 +77,11 @@ def train(config_path: str, run_id: str | None = None):
     np.random.seed(42)
     tf.random.set_seed(42)
 
+    gpus = tf.config.list_physical_devices("GPU")
+    print(f"GPUs visible to TF: {gpus}")
+    if not gpus:
+        print("WARNING: No GPU detected — training will run on CPU!")
+
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 

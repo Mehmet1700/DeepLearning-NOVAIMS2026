@@ -452,7 +452,10 @@ class ViTHubLayer(tf.keras.layers.Layer):
                 "ViTHubLayer requires tensorflow-hub. "
                 "Install with: pip install tensorflow-hub"
             ) from exc
-        self._hub_module = hub.load(self.hub_url)
+        # Explicitly load on GPU:0 if available, otherwise falls back to CPU
+        device = "/GPU:0" if tf.config.list_physical_devices("GPU") else "/CPU:0"
+        with tf.device(device):
+            self._hub_module = hub.load(self.hub_url)
         super().build(input_shape)
 
     def call(self, inputs, training=None):
