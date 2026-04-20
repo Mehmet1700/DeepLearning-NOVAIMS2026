@@ -27,3 +27,5 @@ results/
 *.tar.gz
 .venv/
 outputs/
+
+.tfhub_cache

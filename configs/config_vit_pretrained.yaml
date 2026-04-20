@@ -9,13 +9,13 @@ num_classes: 23
 img_size: [224, 224]
 
 # --- Training ---
-batch_size: 8
-epochs: 30
+batch_size: 32
+epochs: 10
 patience: 5
 learning_rate: 0.0001
 
 # --- Fine-tuning ---
-fine_tune_epochs: 5
+fine_tune_epochs: 0
 fine_tune_lr: 0.00001
 fine_tune_unfrozen_layers: all
 
@@ -32,5 +32,5 @@ zoom_range: 0.1
 contrast_range: 0.1
 
 # --- Output ---
-checkpoint_dir: outputs/checkpoints/vit_large
-log_dir: outputs/logs/vit_large
+checkpoint_dir: outputs/checkpoints/vit_base
+log_dir: outputs/logs/vit_base
