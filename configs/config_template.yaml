@@ -19,25 +19,18 @@ test_dir:  data/test            # Path to test dataset
 # MODEL ARCHITECTURE
 # ─────────────────────────────────────────────────────────────────────────────
 # Backbone selection:
-#   - baseline      : Simple 3-block CNN trained from scratch (fast, no pretrained weights)
-#   - perceptron    : Simple MLP baseline (minimal, no convolutions, sanity check)
-#   - resnet50      : ResNet50 pretrained on ImageNet (recommended: img_size [224, 224])
-#   - efficientnetb3: EfficientNetB3 pretrained on ImageNet (recommended: img_size [300, 300])
-#   - vgg16         : VGG16 pretrained on ImageNet (recommended: img_size [224, 224])
-#   - mobilenetv3   : MobileNetV3Large pretrained on ImageNet (recommended: img_size [512, 512])
-#   - densenet121   : DenseNet121 pretrained on ImageNet (recommended: img_size [224, 224])
+#   - baseline      : Simple 3-block CNN trained from scratch
+#   - perceptron    : Simple MLP baseline 
+#   - resnet50      : ResNet50 pretrained on ImageNet 
+#   - efficientnetb3: EfficientNetB3 pretrained on ImageNet 
+#   - vgg16         : VGG16 pretrained on ImageNet 
+#   - mobilenetv3   : MobileNetV3Large pretrained on ImageNet
 backbone: baseline              # Model backbone choice
 
 # Number of output classes (artist categories)
-# Range: Integer > 0, typically 10-1000
 num_classes: 23                 # Number of artist classes
 
 # Input image dimensions [height, width]
-# Range: [64, 64] to [512, 512] depending on backbone and GPU memory
-# Recommended:
-#   - baseline/resnet50/vgg16/densenet121: [224, 224]
-#   - efficientnetb3: [300, 300]
-#   - mobilenetv3: [512, 512]
 img_size: [128, 128]            # Input image size (height, width)
 
 
@@ -46,18 +39,17 @@ img_size: [128, 128]            # Input image size (height, width)
 # ─────────────────────────────────────────────────────────────────────────────
 # Batch size for training
 # Range: 8-512 depending on GPU memory
-# Recommended: 32-64 for transfer learning, 128 for smaller models
+# Recommended: 32-64 for transfer learning, 128 for perceptron and baseline
 batch_size: 128                 # Training batch size
 
 # Maximum number of epochs to train
-# Range: 5-300
 # Recommended: 5-10 for quick tests, 30-100 for production
-epochs: 5                       # Maximum training epochs
+epochs: 30                       # Maximum training epochs
 
 # Early stopping patience
 # Range: 3-20
 # Patience in epochs without improvement before stopping
-patience: 6                    # EarlyStopping patience
+patience: 10                    # EarlyStopping patience
 
 # Fine-tuning epochs (Phase 2 - full network training)
 # Only used for transfer learning models (not baseline)
@@ -111,7 +103,7 @@ metrics:
 
 # Pooling layer type after the backbone
 # Options:
-#   - global_average_pooling2d : Global average pooling (recommended, preserves spatial info uniformly)
+#   - global_average_pooling2d : Global average pooling 
 #   - global_max_pooling2d     : Global max pooling (emphasizes salient features)
 #   - flatten                  : Flatten layer (uses more parameters, no spatial reduction)
 # Default: global_average_pooling2d
@@ -153,7 +145,6 @@ rotation_range: 0.1
 zoom_range: 0.1
 
 # Contrast range as fraction
-# Range: 0.0-0.5
 contrast_range: 0.1
 
 

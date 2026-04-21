@@ -148,10 +148,6 @@ def _resolve_metrics(metric_names, num_classes):
             # Custom metric for sparse categorical labels
             resolved.append(SparseCategoricalF1Score(num_classes, name="f1_score"))
         
-        elif m == "auc":
-            # AUC is complex with sparse labels; compute it in evaluation instead
-            # Skip adding it here to avoid training errors
-            pass
         else:
             resolved.append(m)
     return resolved

@@ -1,6 +1,6 @@
-# Project Instructions — src/ Guide
+# Project Instructions
 
-This document explains the key pipeline files in `src/`, how they connect to each other, and how to run the project from raw data cleanup to evaluation.
+This document explains the key pipeline files, how they connect to each other, and how to run the project from raw data cleanup to evaluation.
 
 ---
 
@@ -21,6 +21,7 @@ This document explains the key pipeline files in `src/`, how they connect to eac
 5. [Configuration File](#5-configuration-file)
 6. [Outputs](#6-outputs)
 7. [Common Errors](#7-common-errors)
+8. [Notebooks](#8-notebooks)
 
 ---
 
@@ -49,6 +50,8 @@ DeepLearning-NOVAIMS2026/
 │   ├── train/                ← created by split_dataset.py (70% of images)
 │   ├── validation/           ← created by split_dataset.py (15% of images)
 │   └── test/                 ← created by split_dataset.py (15% of images)
+├── configs/
+│   └── config_template.yaml     ← all training settings live here
 ├── src/
 │   ├── checkpoints.py        ← checkpoint path helpers and run-id resolution
 │   ├── dataset.py            ← loads images from folders into TensorFlow datasets
@@ -56,16 +59,21 @@ DeepLearning-NOVAIMS2026/
 │   ├── train.py              ← Step 2: trains the model
 │   ├── evaluate.py           ← Step 3: evaluates the trained model
 │   ├── preprocessing/
+│   │   ├── images_to_remove.json  ← known paths of duplicate raw images
 │   │   ├── remove_duplicates.py  ← removes known duplicate raw images
 │   │   └── split_dataset.py      ← splits raw images into train/val/test
 │   └── utils.py              ← helper functions for EDA notebooks
-├── main.py                   ← convenience entrypoint for duplicate cleanup + splitting
-├── configs/
-│   └── config_local.yaml     ← all training settings live here
-└── outputs/
-    ├── checkpoints/          ← run-scoped model weights after training
-    ├── cache/                ← TensorFlow dataset caches for compatible runs
-    └── logs/                 ← SLURM job logs and reserved log directory
+├── outputs/
+│   ├── checkpoints/          ← run-scoped model weights after training
+│   ├── cache/                ← TensorFlow dataset caches for compatible runs
+│   └── logs/                 ← SLURM job logs and reserved log directory
+├── notebooks/
+│   ├── EDA/                                ← Folder with images of class and pixel distribution per artist
+│   ├── Data Understanding - Group 8.ipynb  ← Analysis of duplicates
+│   ├── explore_wikiart.ipynb               ← Sample images with augmentation
+│   └── Visual Transformer.ipynb            ← Vit implementation on pytorch
+└── main.py                                 ← convenience entrypoint for duplicate cleanup + splitting
+
 ```
 
 ---
@@ -74,7 +82,7 @@ DeepLearning-NOVAIMS2026/
 
 ### Prerequisites
 
-Make sure the virtual environment is activated:
+Make sure the virtual environment exists, has the requirements.txt installed and it is activated:
 ```bash
 source .venv/bin/activate
 ```
@@ -144,7 +152,7 @@ python src/evaluate.py \
 Output includes:
 - A **classification report** with precision, recall, and F1-score per artist
 - A **confusion matrix**
-- Overall **Top-1 Accuracy**
+- Overall **Top-1 F1-Score**
 
 ---
 
@@ -230,29 +238,39 @@ For larger image sizes, caching is disabled to avoid excessive memory and storag
 
 **Purpose:** Defines and compiles the CNN architecture. Imported by `train.py`.
 
-**Current architecture — Baseline CNN:**
+**Baseline Custom CNN:**
 
 ```
-Input (128×128×3)
+Input (224x224×3) # Normalize [0, 255] → [0, 1]
         ↓
 Conv2D(32 filters, 3×3) + ReLU
-MaxPooling  →  64×64
+BatchNormalization
+MaxPooling(3x3)
         ↓
 Conv2D(64 filters, 3×3) + ReLU
-MaxPooling  →  32×32
+BatchNormalization
+MaxPooling(3x3)
         ↓
 Conv2D(128 filters, 3×3) + ReLU
-MaxPooling  →  16×16
+BatchNormalization
+MaxPooling(3x3)
         ↓
-GlobalAveragePooling2D  →  flattens to 1D
-Dropout(0.3)
+Flatten  →  flattens to 1D
+Dropout(0.2)
+Dense(1024, Relu)
+BatchNormalization
+Dropout(0.2)
+Dense(512, Relu)
+BatchNormalization
+Dropout(0.2)
 Dense(23, softmax)  →  probability for each artist
 ```
 
 **Why this architecture for a baseline?**
 - Simple enough to train quickly on CPU/GPU
 - Enough capacity to learn basic visual patterns (colours, shapes)
-- Not expected to get high accuracy — it is a starting point to verify the pipeline works end-to-end
+- Not expected to get high results — it is a starting point
+- Also a single perceptron was used as benchmark (receive the image, normalized the values and predict the artist).
 
 **Compile settings** are read from `config_local.yaml` (not hardcoded):
 - `optimizer` — `adam`, `sgd`, or `rmsprop`
@@ -291,7 +309,7 @@ This file is the reason concurrent runs and different training phases no longer 
 
 | Callback | What it does |
 |---|---|
-| `ModelCheckpoint` | Saves `phase1/best_model.keras` or `phase2/best_model.keras` whenever validation F1 improves |
+| `ModelCheckpoint` | Saves `phase1/best_model.keras` and `phase2/best_model.keras` whenever validation F1 improves |
 | `EarlyStopping` | Stops training if validation loss does not improve for `patience` epochs |
 | `ReduceLROnPlateau` | Halves the learning rate if validation loss stalls for 3 epochs |
 
@@ -429,3 +447,12 @@ Version mismatch between TensorFlow and tensorflow-metal. Fix with:
 ```bash
 uv pip install tensorflow-metal --upgrade
 ```
+
+## 8. Notebooks
+
+This directory contains our initial data exploration, preprocessing research, and visual analysis:
+
+- Data Understanding - Group 8.ipynb: A Jupyter notebook documenting our initial data assessment, primarily focusing on the identification and analysis of duplicate records within the dataset.
+- explore_wikiart.ipynb: A directory containing sample images from the WikiArt dataset, demonstrating the various data augmentation techniques explored for this project.
+- EDA/: A folder storing generated visualizations from our Exploratory Data Analysis. This includes charts illustrating class imbalances and pixel value distributions, broken down by individual artists.
+- Visual Transformer.ipynb: Implementation of the Vision Transformer (ViT) architecture using PyTorch.
