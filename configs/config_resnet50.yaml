@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────
-# ResNet50 — Transfer Learning (Tier 2)
+# ResNet50 — Transfer Learning (Best Current Model)
 # ──────────────────────────────────────────────
 
 # --- Data ---
@@ -8,34 +8,54 @@ val_dir:   data/validation
 test_dir:  data/test
 
 # --- Model ---
-backbone:    resnet50
+backbone: resnet50
 num_classes: 23
-img_size:    [224, 224]   # ResNet50 native input size
+img_size: [224, 224]
+l2_regularization: 1e-4
 
 # --- Training ---
 batch_size: 32
-epochs:     1
-patience:   5
+epochs: 20
+patience: 5
 
 # Phase 1: train head only (backbone frozen)
-learning_rate: 0.001
-# Phase 2: fine-tune backbone at lower lr
-fine_tune_epochs:          1
-fine_tune_lr:              0.00001
-fine_tune_unfrozen_layers: 30      # last N backbone layers to unfreeze; use "all" for full fine-tune
+learning_rate: 1e-3
+weight_decay: 1e-4
 
-# --- Augmentation --- (disabled for baseline comparison)
-augment: false
-# rotation_range:  0.1
-# zoom_range:      0.1
-# contrast_range:  0.1
+# Phase 2: fine-tune backbone at lower lr
+fine_tune_epochs: 30
+fine_tune_lr: 1e-5
+fine_tune_weight_decay: 1e-5
+fine_tune_unfrozen_layers: 60
+
+enable_class_weight: false
+
+# --- Augmentation ---
+augment: true
+rotation_range: 0.08
+zoom_range: [-0.15, 0.1]
+translation_height_range: 0.05
+translation_width_range: 0.05
+random_crop: false
+crop_scale_range: [1.0, 1.0]
+horizontal_flip: true
+vertical_flip: false
+brightness_range: 0.08
+contrast_range: 0.12
+saturation_range: [0.45, 0.6]
+color_jitter_strength: null
+sharpness_range: [0.45, 0.6]
+random_erasing_prob: 0.0
+random_erasing_area: [0.0, 0.0]
+gaussian_noise_std: 0.0
 
 # --- Compile ---
 optimizer: adam
-loss:      sparse_categorical_crossentropy
+loss: sparse_categorical_crossentropy
+
 metrics:
   - f1_score
 
 # --- Output paths ---
 checkpoint_dir: outputs/checkpoints/resnet50
-log_dir:        outputs/logs/resnet50
+log_dir: outputs/logs/resnet50
