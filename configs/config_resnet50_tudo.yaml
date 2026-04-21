@@ -18,41 +18,43 @@ batch_size: 32
 epochs: 20
 patience: 5
 
-# Phase 1: train head only (backbone frozen)
+# # Phase 1: train head only (backbone frozen)
 learning_rate: 1e-3
 weight_decay: 1e-4
 
 # Phase 2: fine-tune backbone at lower lr
-fine_tune_epochs: 30
+fine_tune_epochs: 50
 fine_tune_lr: 1e-5
 fine_tune_weight_decay: 1e-5
-fine_tune_unfrozen_layers: 60
-
+fine_tune_unfrozen_layers: 175
 enable_class_weight: false
 
 # --- Augmentation ---
 augment: true
-rotation_range: 0.08
-zoom_range: [-0.15, 0.1]
-translation_height_range: 0.05
-translation_width_range: 0.05
+rotation_range: 0.03
+zoom_range: [-0.1, 0.05]
+translation_height_range: 0.03
+translation_width_range: 0.03
 random_crop: false
 crop_scale_range: [1.0, 1.0]
 horizontal_flip: true
 vertical_flip: false
-brightness_range: 0.08
-contrast_range: 0.12
-saturation_range: [0.45, 0.6]
+brightness_range: 0.03
+contrast_range: 0.05
+saturation_range: null
 color_jitter_strength: null
-sharpness_range: [0.45, 0.6]
+sharpness_range: null
 random_erasing_prob: 0.0
 random_erasing_area: [0.0, 0.0]
 gaussian_noise_std: 0.0
 
 # --- Compile ---
 optimizer: adam
-loss: sparse_categorical_crossentropy
-
+label_smoothing: 0.0
+prior_aware_label_smoothing: false
+mix_strategy: "none"
+mixup_alpha: 0.0
+cutmix_alpha: 0.0
 metrics:
   - f1_score
 
