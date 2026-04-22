@@ -1,231 +1,84 @@
-# Deep Learning Project
+# Project Instructions
 
-Dataset preparation, exploration, and baseline CNN experimentation for WikiArt artist classification.
+This document explains the key pipeline files, how they connect to each other, and how to run the project from raw data cleanup to evaluation.
 
-## Current Status
+---
 
-- `src/train.py` is the main ML entrypoint; its direct runtime dependencies now live in the `ml` dependency group.
-- `src/dataset.py` now writes data-aware TensorFlow disk caches under `outputs/cache/` for runs with `img_size[0] <= 300`, keyed by split path, loader settings, and split file metadata.
-- Transfer-learning fine-tuning now keeps the pretrained application backbone as a named nested Keras submodel, so Phase 2 layer unfreezing works for the transfer backbones.
-- Training checkpoints are now run-scoped under each config's `checkpoint_dir`, so concurrent HPC jobs and Phase 1/Phase 2 best models no longer overwrite one another.
-- `src/evaluate.py` now resolves checkpoints from explicit weights, `--run-id`, a single discovered run folder, or the legacy flat layout for older artifacts.
-- Transfer checkpoints now load the correct backbone preprocessing function during evaluation, and newly saved checkpoints use project-registered preprocessing wrappers instead of a bare `preprocess_input` Lambda.
-- `src/metric_utils.py` now normalizes classifier probabilities to numeric `float32` before sklearn AUC calls, and `src/model.py` forces both classifier heads to emit `float32` even when training uses `mixed_bfloat16`.
-- `src/evaluate.py` and `src/compare_runs.py` build on the training stack and additionally need plotting dependencies from the `dev` group.
-- `src/preprocessing/split_dataset.py` builds deterministic train, validation, and test splits from `data/wikiart/`.
-- `tests/test_metric_dtype_safety.py` covers the sklearn `bfloat16` AUC failure mode and verifies that both classifier builders emit `float32` outputs under mixed precision.
-- `src/utils.py` contains image-hashing helpers used in duplicate-analysis and EDA workflows; those dependencies live in the `preprocessing` group.
-- Notebooks and exploratory analysis live behind the `dev` group instead of the core runtime path.
-- `data/` and `outputs/` are local-only and ignored by Git, so generated splits, checkpoints, logs, and dataset caches stay out of version control.
+## Table of Contents
 
-## Getting Started
+1. [Project Overview](#1-project-overview)
+2. [Folder Structure](#2-folder-structure)
+3. [Step-by-Step Pipeline](#3-step-by-step-pipeline)
+4. [File Reference](#4-file-reference)
+   - [remove_duplicates.py](#41-remove_duplicatespy)
+   - [split_dataset.py](#42-split_datasetpy)
+   - [dataset.py](#43-datasetpy)
+   - [model.py](#44-modelpy)
+   - [checkpoints.py](#45-checkpointspy)
+   - [train.py](#46-trainpy)
+   - [evaluate.py](#47-evaluatepy)
+   - [utils.py](#48-utilspy)
+5. [Configuration File](#5-configuration-file)
+6. [Outputs and Mlflow](#6-outputs-and-mflow)
+7. [Common Errors](#7-common-errors)
+8. [Notebooks](#8-notebooks)
 
-Create and activate the virtual environment:
+---
 
-```bash
-uv venv
-source .venv/bin/activate
+## 1. Project Overview
+
+This project trains a Convolutional Neural Network (CNN) to classify paintings by artist using the WikiArt dataset. The model looks at a painting and predicts which of the 23 artists painted it.
+
+The pipeline has four main stages:
+
+```
+Raw images  →  Remove duplicates  →  Split into folders  →  Train / Evaluate
+(data/wikiart)   (remove_duplicates.py)  (split_dataset.py)   (train.py / evaluate.py)
 ```
 
-Sync only the dependency groups you need:
+---
 
-```bash
-# Only the src/train.py runtime
-uv sync --only-group ml
+## 2. Folder Structure
 
-# Train, evaluate, compare runs, and open notebooks
-uv sync --group ml
-
-# Duplicate-analysis / hashing helpers plus notebooks
-uv sync --group preprocessing
-
-# Everything
-uv sync --all-groups
 ```
-
-Dependency-group overview:
-
-- `preprocessing`: image hashing and PIL-based helpers used by `src/utils.py` and duplicate-analysis notebooks.
-- `ml`: libraries required to run `src/train.py`.
-- `dev`: notebooks, plotting, benchmarking, and optional Vision Transformer notebook dependencies. This is `uv`'s default dependency group.
-
-`requirements.txt` is kept as a legacy snapshot, but the primary workflow is now driven by `pyproject.toml` and `uv` groups.
-
-Prepare the local raw dataset:
-
-1. Create `data/wikiart/` in the project root.
-2. Add one subdirectory per artist.
-3. Put `.jpg` files directly inside each artist directory.
-
-Generate the split dataset:
-
-```bash
-uv run python main.py
-```
-
-Open notebooks after syncing the default `dev` group. The duplicate-analysis notebooks also need the `preprocessing` group.
-
-## Training Configuration
-
-Transfer-learning runs use `src/train.py` with a YAML config file:
-
-```bash
-uv run --only-group ml python src/train.py --config configs/config_resnet50.yaml
-uv run --only-group ml python src/train.py --config configs/config_resnet50.yaml --run-id local-resnet50-debug
-```
-
-Evaluation and run-comparison commands need both `ml` and `dev`:
-
-```bash
-uv run --group ml python src/evaluate.py --config configs/config_resnet50.yaml --run-id 123456__abcd1234
-uv run --group ml python src/evaluate.py --config configs/config_resnet50.yaml --weights outputs/checkpoints/resnet50/123456__abcd1234/best_model.keras
-uv run --group ml python src/compare_runs.py --outputs_dir outputs
-```
-
-Training stores artifacts under:
-
-- local: `<checkpoint_dir>/<run_id>/`
-- HPC: `<checkpoint_dir>/<SLURM_JOB_ID>__<run_id>/`
-
-The logical child `run_id` comes from `--run-id` when provided, otherwise from the active MLflow run id.
-On HPC, `SLURM_JOB_ID` is added as a prefix so the checkpoint folder can be matched directly to the SLURM log files.
-The run root always contains the overall-best checkpoint across all executed phases.
-
-```text
-local:
-<checkpoint_dir>/
-└── <run_id>/
-    ├── best_model.keras
-    ├── phase1/
-    │   └── best_model.keras
-    └── phase2/
-        ├── best_model.keras
-        └── final_model.keras
-
-HPC:
-<checkpoint_dir>/
-└── <slurm_job_id>__<run_id>/
-    ├── best_model.keras
-    ├── phase1/
-    │   └── best_model.keras
-    └── phase2/
-        ├── best_model.keras
-        └── final_model.keras
-```
-
-When `--weights` is omitted, `src/evaluate.py` loads the run-root `best_model.keras` for the selected folder.
-On HPC, the `--run-id` value is the combined folder name, e.g. `123456__abcd1234`.
-Without `--run-id`, evaluation auto-selects only when exactly one run folder exists; otherwise it fails fast and asks for `--run-id` or `--weights`.
-Legacy flat `<checkpoint_dir>/best_model.keras` checkpoints are still supported for older runs.
-For transfer backbones, the evaluation config's `backbone` must match the checkpoint so the correct preprocessing function is registered at load time.
-
-Transfer-learning fine-tuning configs such as `configs/config_resnet50.yaml` support:
-
-- `fine_tune_epochs`: number of Phase 2 epochs.
-- `fine_tune_lr`: learning rate used for the lower-LR Phase 2 pass.
-- `fine_tune_unfrozen_layers`: number of backbone tail layers to unfreeze in Phase 2. Use `all` for a fully unfrozen model.
-
-## Dataset Cache
-
-For runs with `img_size[0] <= 300`, `src/dataset.py` stores TensorFlow cache files under `outputs/cache/`.
-
-- The cache key includes the resolved split path, image size, batch size, shuffle state, fixed seed, and a fingerprint of the current split files based on relative path, file size, and modification time.
-- Changing the split contents or those loader settings creates a new cache path automatically, which avoids reusing stale cached tensors from an older run.
-- Augmentation still runs after the cache step, so only the decoded and resized base images are reused across epochs and compatible reruns.
-
-## Project Tree
-
-Core project files:
-
-```text
 DeepLearning-NOVAIMS2026/
+├── data/
+│   ├── wikiart/              ← original images, one folder per artist (DO NOT TOUCH)
+│   │   ├── Claude_Monet/
+│   │   ├── Pablo_Picasso/
+│   │   └── ...
+│   ├── train/                ← created by split_dataset.py (70% of images)
+│   ├── validation/           ← created by split_dataset.py (15% of images)
+│   └── test/                 ← created by split_dataset.py (15% of images)
 ├── configs/
-│   ├── config_template.yaml
-│   ├── config_densenet121.yaml
-│   ├── config_efficientnetb3.yaml
-│   ├── config_local.yaml
-│   ├── config_mobilenetv3.yaml
-│   ├── config_resnet50.yaml
-│   └── config_vgg16.yaml
-├── documents/
-│   └── Deep_Learning_Project.pdf
+│   └── config_template.yaml     ← all training settings live here
 ├── jobs/
 │   ├── evaluate_hpc.slurm
 │   └── train_hpc.slurm
-├── notebooks/
-│   ├── Benchmarking.ipynb
-│   ├── Data Understanding - Group 8.ipynb
-│   ├── EDA/
-│   │   ├── EDA.ipynb
-│   │   └── ...
-│   ├── NN.ipynb
-│   ├── Visual Transformer.ipynb
-│   ├── exploration.ipynb
-│   └── explore_wikiart.ipynb
 ├── src/
-│   ├── __init__.py
-│   ├── checkpoints.py
-│   ├── compare_runs.py
-│   ├── dataset.py
-│   ├── evaluate.py
-│   ├── metric_utils.py
-│   ├── model.py
+│   ├── checkpoints.py        ← checkpoint path helpers and run-id resolution
+│   ├── dataset.py            ← loads images from folders into TensorFlow datasets
+│   ├── model.py              ← defines the CNN architecture
+│   ├── train.py              ← Step 2: trains the model
+│   ├── evaluate.py           ← Step 3: evaluates the trained model
 │   ├── preprocessing/
-│   │   ├── images_to_remove.json
-│   │   ├── remove_duplicates.py
-│   │   └── split_dataset.py
-│   ├── train.py
-│   └── utils.py
-├── tests/
-│   └── test_metric_dtype_safety.py
-├── HPC_SETUP.md
-├── INSTRUCTIONS.md
-├── README.md
-├── main.py
-├── pyproject.toml
-├── requirements.txt
-└── uv.lock
-```
+│   │   ├── images_to_remove.json  ← known paths of duplicate raw images
+│   │   ├── remove_duplicates.py  ← removes known duplicate raw images
+│   │   └── split_dataset.py      ← splits raw images into train/val/test
+│   └── utils.py              ← helper functions for EDA notebooks
+├── outputs/
+│   ├── checkpoints/          ← run-scoped model weights after training
+│   ├── cache/                ← TensorFlow dataset caches for compatible runs
+│   └── logs/                 ← SLURM job logs and reserved log directory
+├── notebooks/
+│   ├── EDA/                                ← Folder with images of class and pixel distribution per artist
+│   ├── Data Understanding - Group 8.ipynb  ← Analysis of duplicates
+│   ├── explore_wikiart.ipynb               ← Sample images with augmentation
+│   └── Vision Transformer.ipynb            ← Vit implementation on pytorch
+├── mlflow.db                               ← Database with the experiments of mobilenet, effitientnet, baselines models, vgg16
+├── resnet_mlflow.db                        ← Database with the expriments of the resnet
+└── main.py                                 ← convenience entrypoint for duplicate cleanup + splitting
 
-- `configs/`: YAML configuration files for local runs and backbone-specific training jobs.
-- `documents/Deep_Learning_Project.pdf`: project brief and reference material.
-- `jobs/evaluate_hpc.slurm`: SLURM job definition for HPC evaluation runs.
-- `jobs/train_hpc.slurm`: SLURM job definition for HPC training runs.
-- `notebooks/`: exploratory analysis, benchmarking, baseline CNN work, and Vision Transformer experiments.
-- `src/__init__.py`: package marker for the shared training and preprocessing modules.
-- `src/checkpoints.py`: shared helpers for run-scoped checkpoint layout, run-id selection, and evaluation path resolution.
-- `src/compare_runs.py`: aggregates saved evaluation summaries into comparison plots and tables.
-- `src/dataset.py`: dataset-loading helpers shared by the training and evaluation code, including the data-aware TensorFlow cache path builder.
-- `src/evaluate.py`: evaluation entrypoint for trained models and saved checkpoints.
-- `src/metric_utils.py`: shared helpers that cast classifier probabilities to sklearn-safe `float32` arrays before AUC computation.
-- `src/model.py`: model construction and fine-tuning utilities for the classification pipeline.
-- `src/preprocessing/images_to_remove.json`: curated list of duplicate or invalid WikiArt files to delete from the raw dataset.
-- `src/preprocessing/remove_duplicates.py`: cleanup script that removes known duplicate raw WikiArt images.
-- `src/preprocessing/split_dataset.py`: dataset splitter rooted at `data/wikiart` and writing splits under `data/`.
-- `src/train.py`: training entrypoint for the image classification models.
-- `src/utils.py`: image hashing helpers used for duplicate-image analysis workflows.
-- `tests/test_metric_dtype_safety.py`: regression tests for sklearn-safe probability casting and float32 classifier outputs under mixed precision.
-- `HPC_SETUP.md`: notes for running the project on the target HPC environment.
-- `INSTRUCTIONS.md`: project workflow notes and runbook-style guidance for the dataset and training pipeline.
-- `README.md`: project overview, setup steps, data layout, and workflow notes.
-- `main.py`: root entrypoint that removes duplicates and then generates the train, validation, and test split folders.
-- `pyproject.toml`: project metadata and grouped dependency configuration for the `uv` workflow.
-- `requirements.txt`: legacy dependency snapshot retained for compatibility with older workflows.
-- `uv.lock`: locked dependency set for reproducible `uv` environments.
-
-## Local Data Layout
-
-Expected raw dataset layout:
-
-```text
-data/
-└── wikiart/
-    ├── artist_1/
-    │   ├── image_001.jpg
-    │   ├── image_002.jpg
-    │   └── ...
-    ├── artist_2/
-    └── ...
 ```
 
 Generated split layout:
@@ -253,37 +106,393 @@ data/
 - `data/wikiart/`: raw input dataset used by the split script and EDA notebooks.
 - `data/train/`, `data/validation/`, and `data/test/`: generated split output consumed by the training, evaluation, and notebook workflows.
 
-## Split Script Behavior
+---
 
-Default configuration in [`src/preprocessing/split_dataset.py`](src/preprocessing/split_dataset.py):
+## 3. Step-by-Step Pipeline
 
-```python
-SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parents[1]
-RAW_DATASET_DIR_NAME = "wikiart"
-SOURCE_DIR = PROJECT_ROOT / "data" / RAW_DATASET_DIR_NAME
-OUTPUT_DIR = PROJECT_ROOT / "data"
-TRAIN_RATIO = 0.70
-VALIDATION_RATIO = 0.15
-TEST_RATIO = 0.15
-SEED = 73
+### Prerequisites
+
+Make sure the virtual environment exists, has the requirements.txt installed and it is activated:
+```bash
+source .venv/bin/activate
 ```
 
-The script:
+---
 
-- resolves paths from the file location, so it targets the repository root even though the script lives under `src/preprocessing/`
-- reads non-hidden class directories from `data/wikiart/`
-- copies only `.jpg` files found directly inside each class directory
-- writes a fresh split dataset under `data/train`, `data/validation`, and `data/test`
-- uses deterministic per-class shuffling with seed `73`
-- preserves file metadata via `shutil.copy2`
+### Step 1 — Prepare the dataset
 
-Validation rules:
+**Run once.** The standard entrypoint removes known duplicate raw images and then creates `data/train/`, `data/validation/`, and `data/test/`.
 
-- The ratios must sum to `1.0`.
-- The source directory must exist and contain class subdirectories.
-- The output directory may contain the raw `data/wikiart/` source folder.
-- The output directory cannot already contain `train`, `validation`, or `test`.
-- The output directory still cannot equal the source directory or sit inside it.
-- Each class must have enough images to keep all three splits non-empty under the configured ratios.
-- Re-running requires removing or renaming the existing split folders first.
+```bash
+python main.py
+```
+
+If you only want to rebuild the split folders without running duplicate cleanup:
+
+```bash
+python src/preprocessing/split_dataset.py
+```
+
+> **Important:** The split script refuses to run if `data/train/`, `data/validation/`, or `data/test/` already exist. Remove those folders first if you genuinely want to rebuild the split.
+
+---
+
+### Step 2 — Train the model
+
+```bash
+python src/train.py
+```
+
+By default this uses `configs/config_local.yaml`. To use a different config:
+```bash
+python src/train.py --config configs/config_resnet50.yaml
+```
+
+You will see progress per batch:
+```
+Epoch 1/5
+292/292 ━━━━━━━━━━━━━━━━━━━━ 120s - f1_score: 0.12 - val_f1_score: 0.15
+```
+
+- `292` = number of batches per epoch (total images ÷ batch size)
+- Training saves checkpoints under `<checkpoint_dir>/<run_id>/` locally
+- On HPC, training saves checkpoints under `<checkpoint_dir>/<SLURM_JOB_ID>__<run_id>/`
+- In `configs/config_local.yaml`, this resolves to `outputs/checkpoints/local/<run_id>/`
+
+---
+
+### Step 3 — Evaluate the model
+
+```bash
+python src/evaluate.py \
+  --config configs/config_local.yaml \
+  --run-id <run_id>
+```
+
+On HPC, `--run-id` should be the combined folder name, for example `123456__abcd1234`.
+
+If you already know the exact checkpoint path, you can override run-based lookup:
+
+```bash
+python src/evaluate.py \
+  --config configs/config_local.yaml \
+  --weights outputs/checkpoints/local/<run_id>/best_model.keras
+```
+
+Output includes:
+- A **classification report** with precision, recall, and F1-score per artist
+- A **confusion matrix**
+- Overall **Top-1 F1-Score**
+
+---
+
+## 4. File Reference
+
+### 4.1 `remove_duplicates.py`
+
+**Purpose:** Deletes known duplicate files from `data/wikiart/` before you build the train, validation, and test folders.
+
+**How it works:**
+1. Loads the fixed duplicate path list from `src/preprocessing/images_to_remove.json`
+2. Maps those JSON paths into the local `data/wikiart/` directory
+3. Deletes files that still exist
+4. Prints a short summary of removed, missing, and invalid entries
+
+This script is usually run through `main.py`, so you normally do not need to call it directly.
+
+---
+
+### 4.2 `split_dataset.py`
+
+**Purpose:** Copies images from `data/wikiart/` into physical train, validation, and test folders.
+
+**Key settings** (defined at the top of the file):
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `TRAIN_RATIO` | `0.70` | 70% of images go to training |
+| `VALIDATION_RATIO` | `0.15` | 15% go to validation |
+| `TEST_RATIO` | `0.15` | 15% go to testing |
+| `SEED` | `73` | Ensures the same split every time |
+| `IMAGE_SUFFIXES` | `{".jpg"}` | Only `.jpg` files are included |
+
+**What it does internally:**
+1. Reads all artist subfolders from `data/wikiart/`
+2. For each artist, shuffles their images deterministically using the seed
+3. Splits them according to the ratios
+4. Copies (not moves) the files into the output folders
+
+**Why copy instead of move?** The original `data/wikiart/` stays intact. If you need to re-split with different ratios, you still have the originals.
+
+---
+
+### 4.3 `dataset.py`
+
+**Purpose:** Loads images from the split folders into TensorFlow datasets that the model can train on. This file is not run directly — it is imported by `train.py` and `evaluate.py`.
+
+**Two functions:**
+
+#### `build_augmentation_pipeline(config)`
+Creates a pipeline of random transformations applied to training images to make the model more robust:
+
+| Transformation | What it does | Config key |
+|---|---|---|
+| `RandomFlip` | Randomly mirrors image left ↔ right | — |
+| `RandomRotation` | Rotates by up to ±10% of 360° | `rotation_range` |
+| `RandomZoom` | Zooms in/out by up to ±10% | `zoom_range` |
+| `RandomContrast` | Adjusts contrast by up to ±10% | `contrast_range` |
+
+Augmentation only runs on the training set. Validation and test images are always loaded clean.
+
+#### `load_split(split_dir, img_size, batch_size, augment, config)`
+Builds a `tf.data.Dataset` from a folder. The pipeline runs in this order:
+
+```
+Read images from disk
+        ↓
+Resize to img_size (e.g. 128×128)
+        ↓
+Build an on-disk cache in outputs/cache/ for img_size <= 300
+        ↓
+Apply augmentation (training only, random each epoch)
+        ↓
+Prefetch next batch while GPU trains on current batch
+```
+
+**Returns:** `(dataset, class_names)` — the dataset and a list of artist names in alphabetical order (e.g. `["Albrecht_Durer", "Boris_Kustodiev", ...]`).
+For larger image sizes, caching is disabled to avoid excessive memory and storage pressure.
+
+---
+
+### 4.4 `model.py`
+
+**Purpose:** Defines and compiles the CNN architecture. Imported by `train.py`.
+
+**Baseline Custom CNN:**
+
+```
+Input (224x224×3) # Normalize [0, 255] → [0, 1]
+        ↓
+Conv2D(32 filters, 3×3) + ReLU
+BatchNormalization
+MaxPooling(3x3)
+        ↓
+Conv2D(64 filters, 3×3) + ReLU
+BatchNormalization
+MaxPooling(3x3)
+        ↓
+Conv2D(128 filters, 3×3) + ReLU
+BatchNormalization
+MaxPooling(3x3)
+        ↓
+Flatten  →  flattens to 1D
+Dropout(0.2)
+Dense(1024, Relu)
+BatchNormalization
+Dropout(0.2)
+Dense(512, Relu)
+BatchNormalization
+Dropout(0.2)
+Dense(23, softmax)  →  probability for each artist
+```
+
+**Why this architecture for a baseline?**
+- Simple enough to train quickly on CPU/GPU
+- Enough capacity to learn basic visual patterns (colours, shapes)
+- Not expected to get high results — it is a starting point
+- Also a single perceptron was used as benchmark (receive the image, normalized the values and predict the artist).
+
+**Compile settings** are read from `config_local.yaml` (not hardcoded):
+- `optimizer` — `adam`, `sgd`, or `rmsprop`
+- `learning_rate` — e.g. `0.001`
+- `loss` — `sparse_categorical_crossentropy`
+- `metrics` — e.g. `[f1_score]`
+
+---
+
+### 4.5 `checkpoints.py`
+
+**Purpose:** Centralizes checkpoint naming, run-id resolution, and evaluation path lookup.
+
+**What it handles:**
+- builds the run-scoped checkpoint layout under:
+  - local: `<checkpoint_dir>/<run_id>/`
+  - HPC: `<checkpoint_dir>/<SLURM_JOB_ID>__<run_id>/`
+- resolves the logical child `run_id` from `--run-id` or the active MLflow run id
+- prefixes the checkpoint folder name with `SLURM_JOB_ID` on HPC
+- keeps Phase 1 and Phase 2 checkpoint paths separate
+- resolves evaluation checkpoints from `--weights`, `--run-id`, a single discovered run folder, or the legacy flat layout
+
+This file is the reason concurrent runs and different training phases no longer overwrite one another.
+
+---
+
+### 4.6 `train.py`
+
+**Purpose:** Runs the full training loop. This is the main script your team will run most often.
+
+**What it does step by step:**
+1. Reads all settings from the config YAML
+2. Loads the training and validation datasets via `dataset.py`
+3. Builds the model via `model.py`
+4. Sets up 3 automatic callbacks:
+
+| Callback | What it does |
+|---|---|
+| `ModelCheckpoint` | Saves `phase1/best_model.keras` and `phase2/best_model.keras` whenever validation F1 improves |
+| `EarlyStopping` | Stops training if validation loss does not improve for `patience` epochs |
+| `ReduceLROnPlateau` | Halves the learning rate if validation loss stalls for 3 epochs |
+
+5. Calls `model.fit()` to run the training loop
+6. Saves a run-root `best_model.keras` copied from the best overall phase, plus phase-specific checkpoint files
+
+**Run:**
+```bash
+python src/train.py                              # uses config_local.yaml by default
+python src/train.py --config configs/other.yaml  # override config
+python src/train.py --config configs/other.yaml --run-id local-debug
+```
+
+---
+
+### 4.7 `evaluate.py`
+
+**Purpose:** Loads a saved model and runs it against the test set to measure performance.
+
+**What it outputs:**
+- **Classification report** — precision, recall, F1-score per artist
+- **Confusion matrix** — which artists get confused with each other
+- **Top-1 Accuracy** — overall percentage of correct predictions
+
+**Run:**
+```bash
+python src/evaluate.py \
+  --config configs/config_local.yaml \
+  --run-id <run_id>
+```
+
+> Prefer the run-root `best_model.keras` for evaluation. It is copied from whichever phase achieved the highest validation F1, so a stronger Phase 1 model is preserved even after Phase 2 finishes.
+
+---
+
+### 4.8 `utils.py`
+
+**Purpose:** Helper functions used in the EDA notebooks. Not part of the training pipeline.
+
+| Function | What it does |
+|---|---|
+| `get_md5_hash(image_path)` | Returns an MD5 hash of an image file — useful for finding exact duplicate images |
+| `get_perceptual_hash(image_path)` | Returns a perceptual hash (pHash) — useful for finding visually similar images even if files differ |
+
+---
+
+## 5. Configuration File
+
+All training settings are in `configs/config_local.yaml`. You should never need to edit Python files to change training behaviour — change the config instead.
+
+```yaml
+# --- Data ---
+train_dir: data/train        # folder created by split_dataset.py
+val_dir:   data/validation
+test_dir:  data/test
+
+# --- Model ---
+backbone: baseline            # local config uses the baseline CNN
+num_classes: 23              # number of artists
+img_size:    [128, 128]      # images are resized to this before being fed to the model
+
+# --- Training ---
+batch_size: 128              # number of images processed at once
+epochs:     5                # maximum training epochs (EarlyStopping may stop earlier)
+patience:   5                # epochs to wait before EarlyStopping triggers
+fine_tune_epochs: 0          # Phase 2 disabled in the local baseline config
+fine_tune_lr: 0.00001
+fine_tune_unfrozen_layers: all
+
+# --- Augmentation ---
+augment: false
+
+# --- Compile ---
+optimizer:     adam          # adam | sgd | rmsprop
+learning_rate: 0.001
+loss:          sparse_categorical_crossentropy
+metrics:
+  - f1_score
+
+# --- Output paths ---
+# Base directory for run-scoped checkpoints (<checkpoint_dir>/<run_id>/...)
+checkpoint_dir: outputs/checkpoints/local
+log_dir:        outputs/logs/local
+```
+
+---
+
+## 6. Outputs and Mlflow
+
+After training you will find:
+
+Here `output_run_id` means:
+- local: `run_id`
+- HPC: `SLURM_JOB_ID__run_id`
+
+| File or folder | Description |
+|---|---|
+| local: `<checkpoint_dir>/<run_id>/best_model.keras` | Best overall model weights across all executed phases |
+| HPC: `<checkpoint_dir>/<SLURM_JOB_ID>__<run_id>/best_model.keras` | Best overall model weights across all executed phases |
+| `<checkpoint_dir>/<output_run_id>/phase1/best_model.keras` | Best Phase 1 checkpoint |
+| `<checkpoint_dir>/<output_run_id>/phase2/best_model.keras` | Best Phase 2 checkpoint, when fine-tuning runs |
+| `<checkpoint_dir>/<output_run_id>/phase1/final_model.keras` | Final model when training stops after Phase 1 |
+| `<checkpoint_dir>/<output_run_id>/phase2/final_model.keras` | Final model when Phase 2 runs |
+| `outputs/cache/` | TensorFlow dataset cache files for compatible runs |
+| `outputs/logs/` | SLURM job logs and the configured project log directory |
+
+To see the results of the experiments on the interactive dashnoard of MlFlow just need to type on command prompt:
+- For all the results that are not the Resnet
+```bash
+mlflow ui
+```
+- For the results of the resnet
+```bash
+mlflow ui --backend-store-uri sqlite:///resnet_mlflow.db
+```
+
+---
+
+## 7. Common Errors
+
+**`ModuleNotFoundError: No module named 'src'`**
+You are running the script with `python3 -m src.train` from outside the project root, or using a Python interpreter outside the virtual environment. Make sure you activate the venv and run from the project root:
+```bash
+source .venv/bin/activate
+python src/train.py
+```
+
+**`ValueError: Output directory already contains split folders`**
+You already ran the split step before. The split already exists, so the script refuses to overwrite it. If you genuinely want to re-split, delete the folders first:
+```bash
+rm -rf data/train data/validation data/test
+python main.py
+```
+
+**`Multiple run directories found ... Pass --run-id or --weights explicitly.`**
+This happens when a config's `checkpoint_dir` contains more than one run folder and evaluation cannot guess which one you want. Pass either:
+```bash
+python src/evaluate.py --config configs/config_local.yaml --run-id <run_id>
+python src/evaluate.py --config configs/config_local.yaml --weights <path-to-checkpoint>
+```
+On HPC, the `--run-id` value is the combined folder name, e.g. `123456__abcd1234`.
+
+**`tensorflow-metal` crash on import**
+Version mismatch between TensorFlow and tensorflow-metal. Fix with:
+```bash
+uv pip install tensorflow-metal --upgrade
+```
+
+## 8. Notebooks
+
+This directory contains our initial data exploration, preprocessing research, and visual analysis:
+
+- Data Understanding - Group 8.ipynb: A Jupyter notebook documenting our initial data assessment, primarily focusing on the identification and analysis of duplicate records within the dataset.
+- explore_wikiart.ipynb: A directory containing sample images from the WikiArt dataset, demonstrating the various data augmentation techniques explored for this project.
+- EDA/: A folder storing generated visualizations from our Exploratory Data Analysis. This includes charts illustrating class imbalances and pixel value distributions, broken down by individual artists.
+- Vision Transformer.ipynb: Implementation of the Vision Transformer (ViT) architecture using PyTorch.
