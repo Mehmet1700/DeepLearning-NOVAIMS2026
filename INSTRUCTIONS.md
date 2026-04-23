@@ -1,4 +1,4 @@
-# Deep Learning Project
+# Project Instruction
 
 Dataset preparation, exploration, and baseline CNN experimentation for WikiArt artist classification.
 

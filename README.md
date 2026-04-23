@@ -1,6 +1,10 @@
-# Project Instructions
+# Deep Learning Project on WikiArt
+
+Dataset preparation, exploration, and baseline CNN experimentation for WikiArt artist classification.
 
 This document explains the key pipeline files, how they connect to each other, and how to run the project from raw data cleanup to evaluation.
+
+Github Repository link: https://github.com/Mehmet1700/DeepLearning-NOVAIMS2026/tree/main
 
 ---
 
@@ -58,8 +62,11 @@ DeepLearning-NOVAIMS2026/
 ├── src/
 │   ├── checkpoints.py        ← checkpoint path helpers and run-id resolution
 │   ├── dataset.py            ← loads images from folders into TensorFlow datasets
+│   ├── dataset_extra.py      ← Had extra augmentation to test
 │   ├── model.py              ← defines the CNN architecture
+│   ├── model_extra.py        ← Receive the extra paramaters for regularization
 │   ├── train.py              ← Step 2: trains the model
+│   ├── train_extra.py        ← Receive the extra paramaters for augmentation and training
 │   ├── evaluate.py           ← Step 3: evaluates the trained model
 │   ├── preprocessing/
 │   │   ├── images_to_remove.json  ← known paths of duplicate raw images

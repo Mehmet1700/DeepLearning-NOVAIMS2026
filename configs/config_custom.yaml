@@ -1,0 +1,36 @@
+# ──────────────────────────────────────────────
+# Local development configuration
+# ──────────────────────────────────────────────
+
+# --- Data ---
+train_dir: data/train
+val_dir:   data/validation
+test_dir:  data/test
+
+# --- Model ---
+backbone:    baseline # perceptron
+num_classes: 23
+img_size:    [224, 224]
+
+# --- Training ---
+batch_size: 128
+epochs:     30
+patience:   6
+
+# --- Augmentation ---
+augment: False
+rotation_range:  0
+zoom_range:      0
+contrast_range:  0
+compute_class_weight: True
+
+# --- Compile ---
+optimizer:     adam
+learning_rate: 0.001
+loss:          sparse_categorical_crossentropy
+metrics:
+  - f1_score
+
+# --- Output paths ---
+checkpoint_dir: outputs/checkpoints/local
+log_dir:        outputs/logs/local

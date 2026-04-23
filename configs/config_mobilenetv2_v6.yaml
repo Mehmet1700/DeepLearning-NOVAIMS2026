@@ -16,14 +16,14 @@ img_size:    [224, 224]
 # --- Training ---
 batch_size: 256
 epochs:     100
-patience:   15
+patience:   10
 
 # Phase 1: train head only (backbone frozen)
 learning_rate: 0.004
 # Phase 2: unfreeze all backbone layers
-fine_tune_epochs:          50
+fine_tune_epochs:          40
 fine_tune_lr:              0.00004
-fine_tune_unfrozen_layers: "all"
+fine_tune_unfrozen_layers: 30
 
 # --- Class weights ---
 compute_class_weight: true
